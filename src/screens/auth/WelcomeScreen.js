@@ -1,55 +1,37 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { Button } from "../../components/ui";
-import { colors, sp, fs, fw, shadows } from "../../constants/theme";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 
-export default function WelcomeScreen(props) {
-  var nav = props.navigation;
-  var ins = useSafeAreaInsets();
-
+export default function WelcomeScreen({ navigation }) {
   return (
-    <View style={[s.c, { paddingTop: ins.top, paddingBottom: ins.bottom + sp.lg }]}>
-      <TouchableOpacity style={s.closeBtn} onPress={function () { nav.goBack(); }}>
-        <Ionicons name="close" size={24} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <View style={s.hero}>
-        <Image source={require("../../../assets/staff-arts-logo.png")} style={s.logo} resizeMode="contain" />
-        <Text style={s.title}>Staff Arts</Text>
-        <Text style={s.tagline}>Where artists connect, create, and collect.</Text>
+    <SafeAreaView style={s.safe}>
+      <View style={s.top}>
+        <Text style={s.icon}>◆</Text>
+        <Text style={s.brand}>Staff Arts</Text>
+        <Text style={s.tagline}>Where creativity{"\n"}finds its home</Text>
       </View>
-
-      <View style={s.features}>
-        <View style={s.featureRow}><Text style={s.featureIcon}>🎨</Text><Text style={s.featureTxt}>Showcase your portfolio</Text></View>
-        <View style={s.featureRow}><Text style={s.featureIcon}>🛒</Text><Text style={s.featureTxt}>Buy and sell original artwork</Text></View>
-        <View style={s.featureRow}><Text style={s.featureIcon}>🤝</Text><Text style={s.featureTxt}>Connect with artists and collectors</Text></View>
-      </View>
-
-      <View style={s.actions}>
-        <Button title="Get Started" onPress={function () { nav.navigate("Register"); }} size="lg" style={shadows.md} />
-        <Button title="I already have an account" variant="ghost" onPress={function () { nav.navigate("Login"); }} size="md" />
-        <TouchableOpacity style={s.skipBtn} onPress={function () { nav.goBack(); }}>
-          <Text style={s.skipTxt}>Just browsing</Text>
+      <View style={s.bottom}>
+        <Text style={s.desc}>A community for artists, collectors, and galleries.</Text>
+        <TouchableOpacity style={s.btn} onPress={function () { navigation.navigate("Register"); }}>
+          <Text style={s.btnText}>Get Started</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.link} onPress={function () { navigation.navigate("Login"); }}>
+          <Text style={{ color: c.teal, fontSize: fs.md, fontWeight: fw.semi }}>I have an account</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 var s = StyleSheet.create({
-  c: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: sp.lg },
-  closeBtn: { alignSelf: "flex-end", padding: sp.sm, marginTop: sp.xs },
-  hero: { flex: 1, justifyContent: "center", alignItems: "center" },
-  logo: { width: 80, height: 80, marginBottom: sp.md },
-  title: { fontSize: fs.hero, fontWeight: fw.bold, color: colors.text, letterSpacing: -0.5 },
-  tagline: { fontSize: fs.lg, color: colors.textSecondary, marginTop: sp.sm, textAlign: "center", lineHeight: 24, maxWidth: 280 },
-  features: { paddingVertical: sp.lg, gap: sp.md },
-  featureRow: { flexDirection: "row", alignItems: "center", gap: sp.md },
-  featureIcon: { fontSize: 22 },
-  featureTxt: { fontSize: fs.md, color: colors.textSecondary },
-  actions: { gap: sp.sm, paddingTop: sp.md },
-  skipBtn: { alignItems: "center", paddingVertical: sp.sm },
-  skipTxt: { fontSize: fs.sm, color: colors.textMuted },
+  safe: { flex: 1, backgroundColor: c.bg, justifyContent: "space-between" },
+  top: { flex: 1, justifyContent: "center", alignItems: "center" },
+  icon: { fontSize: 48, color: c.teal, marginBottom: sp.md },
+  brand: { fontSize: fs.hero, fontWeight: fw.light, color: c.text, letterSpacing: 2 },
+  tagline: { fontSize: fs.xxl, color: c.textSecondary, textAlign: "center", marginTop: sp.md, lineHeight: 34, fontWeight: fw.light },
+  bottom: { paddingHorizontal: sp.lg, marginBottom: sp.lg },
+  desc: { fontSize: fs.md, color: c.textMuted, textAlign: "center", lineHeight: 24, marginBottom: sp.xxl },
+  btn: { backgroundColor: c.teal, paddingVertical: 20, borderRadius: rad.md, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+  btnText: { color: c.textInverse, fontSize: fs.lg, fontWeight: fw.bold, letterSpacing: 0.5 },
+  link: { paddingVertical: sp.md, alignItems: "center" },
 });

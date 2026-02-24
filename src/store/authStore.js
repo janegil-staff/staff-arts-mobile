@@ -1,137 +1,96 @@
-import React, { createContext, useContext, useReducer, useEffect, useMemo } from "react";
-import { authService } from "../services/auth";
+import { createContext, useContext, useReducer, useEffect, useMemo } from "react";
+import { auth } from "../services/data";
 
 var AuthContext = createContext(null);
 
-var initialState = {
-  user: null,
-  isAuthenticated: false,
-  isLoading: true,
-  error: null,
-};
+var initial = { user: null, ok: false, loading: true };
 
 function reducer(state, action) {
   switch (action.type) {
-    case "LOADING":
-      return { user: state.user, isAuthenticated: state.isAuthenticated, isLoading: true, error: null };
-    case "LOGIN_SUCCESS":
-      return { user: action.user, isAuthenticated: true, isLoading: false, error: null };
-    case "LOGOUT":
-      return { user: null, isAuthenticated: false, isLoading: false, error: null };
-    case "ERROR":
-      return { user: state.user, isAuthenticated: state.isAuthenticated, isLoading: false, error: action.error };
-    case "UPDATE_USER":
-      return { user: action.user, isAuthenticated: state.isAuthenticated, isLoading: false, error: null };
-    case "CLEAR_ERROR":
-      return { user: state.user, isAuthenticated: state.isAuthenticated, isLoading: state.isLoading, error: null };
-    default:
-      return state;
+    case "LOADING": return { user: state.user, ok: state.ok, loading: true };
+    case "SIGNED_IN": return { user: action.user, ok: true, loading: false };
+    case "SIGNED_OUT": return { user: null, ok: false, loading: false };
+    default: return state;
   }
 }
 
-export function AuthProvider(props) {
-  var ref = useReducer(reducer, initialState);
-  var state = ref[0];
-  var dispatch = ref[1];
+export function AuthProvider({ children }) {
+  var [state, dispatch] = useReducer(reducer, initial);
 
   useEffect(function () {
-    checkAuth();
+    (async function () {
+      try {
+        if (await auth.check()) {
+          var u = await auth.me();
+          dispatch({ type: "SIGNED_IN", user: u });
+        } else {
+          dispatch({ type: "SIGNED_OUT" });
+        }
+      } catch (e) {
+        await auth.logout();
+        dispatch({ type: "SIGNED_OUT" });
+      }
+    })();
   }, []);
 
-  function checkAuth() {
-    dispatch({ type: "LOADING" });
-    authService.isAuthenticated().then(function (hasToken) {
-      if (hasToken) {
-        return authService.getProfile().then(function (user) {
-          dispatch({ type: "LOGIN_SUCCESS", user: user });
-        });
-      } else {
-        dispatch({ type: "LOGOUT" });
-      }
-    }).catch(function () {
-      authService.logout().catch(function () {});
-      dispatch({ type: "LOGOUT" });
-    });
-  }
-
-  function login(email, password) {
-    dispatch({ type: "LOADING" });
-    return authService.login(email, password).then(function (res) {
-      dispatch({ type: "LOGIN_SUCCESS", user: res.user });
-    }).catch(function (e) {
-      dispatch({ type: "ERROR", error: e.message });
-      throw e;
-    });
-  }
-
-  function register(payload) {
-    dispatch({ type: "LOADING" });
-    var body = {};
-    var keys = Object.keys(payload);
-    for (var i = 0; i < keys.length; i++) body[keys[i]] = payload[keys[i]];
-    if (body.name && !body.displayName) body.displayName = body.name;
-
-    return authService.register(body).then(function (res) {
-      dispatch({ type: "LOGIN_SUCCESS", user: res.user });
-    }).catch(function (e) {
-      dispatch({ type: "ERROR", error: e.message });
-      throw e;
-    });
-  }
-
-  function logout() {
-    return authService.logout().then(function () {
-      dispatch({ type: "LOGOUT" });
-    });
-  }
-
-  function googleLogin(googleUser, accessToken) {
-    dispatch({ type: "LOADING" });
-    return authService.googleLogin(googleUser, accessToken).then(function (res) {
-      var user = res.user;
-      if (!user) {
-        return authService.getProfile().then(function (u) {
-          dispatch({ type: "LOGIN_SUCCESS", user: u });
-        });
-      }
-      dispatch({ type: "LOGIN_SUCCESS", user: user });
-    }).catch(function (e) {
-      dispatch({ type: "ERROR", error: e.message });
-      throw e;
-    });
-  }
-
-  function updateProfile(updates) {
-    return authService.updateProfile(updates).then(function (user) {
-      dispatch({ type: "UPDATE_USER", user: user });
-    });
-  }
-
-  function clearError() {
-    dispatch({ type: "CLEAR_ERROR" });
-  }
-
-  var value = useMemo(function () {
+  var actions = useMemo(function () {
     return {
-      user: state.user,
-      isAuthenticated: state.isAuthenticated,
-      isLoading: state.isLoading,
-      error: state.error,
-      login: login,
-      register: register,
-      logout: logout,
-      googleLogin: googleLogin,
-      updateProfile: updateProfile,
-      clearError: clearError,
-      checkAuth: checkAuth,
+      login: async function (email, pw) {
+        dispatch({ type: "LOADING" });
+        try {
+          var r = await auth.login(email, pw);
+          dispatch({ type: "SIGNED_IN", user: r.user });
+        } catch (err) {
+          dispatch({ type: "SIGNED_OUT" });
+          throw err;
+        }
+      },
+      register: async function (payload) {
+        dispatch({ type: "LOADING" });
+        try {
+          var r = await auth.register(payload);
+          dispatch({ type: "SIGNED_IN", user: r.user });
+        } catch (err) {
+          dispatch({ type: "SIGNED_OUT" });
+          throw err;
+        }
+      },
+      logout: async function () {
+        await auth.logout();
+        dispatch({ type: "SIGNED_OUT" });
+      },
+      check: async function () {
+        dispatch({ type: "LOADING" });
+        try {
+          if (await auth.check()) {
+            var u = await auth.me();
+            dispatch({ type: "SIGNED_IN", user: u });
+          } else {
+            dispatch({ type: "SIGNED_OUT" });
+          }
+        } catch (e) {
+          await auth.logout();
+          dispatch({ type: "SIGNED_OUT" });
+        }
+      },
     };
-  }, [state]);
+  }, []);
 
-  return React.createElement(AuthContext.Provider, { value: value }, props.children);
+  var value = {
+    user: state.user,
+    ok: state.ok,
+    loading: state.loading,
+    login: actions.login,
+    register: actions.register,
+    logout: actions.logout,
+    check: actions.check,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   var ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error("useAuth must be inside AuthProvider");
   return ctx;
 }
