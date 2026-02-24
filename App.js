@@ -1,20 +1,52 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from "expo-status-bar";
+import { NavigationContainer } from "@react-navigation/native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { View, ActivityIndicator, LogBox } from "react-native";
+import { AuthProvider, useAuth } from "./src/store/authStore";
+import AuthNav from "./src/navigation/AuthNavigator";
+import MainNav from "./src/navigation/MainNavigator";
+import { colors } from "./src/constants/theme";
 
-export default function App() {
+LogBox.ignoreLogs(["Reanimated", "VirtualizedLists"]);
+
+var navTheme = {
+  dark: true,
+  colors: {
+    primary: colors.teal,
+    background: colors.bg,
+    card: colors.bg,
+    text: colors.text,
+    border: colors.border,
+    notification: colors.teal,
+  },
+};
+
+function Root() {
+  var { ok, loading } = useAuth();
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.teal} size="large" />
+      </View>
+    );
+  }
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <StatusBar style="light" />
+      {ok ? <MainNav /> : <AuthNav />}
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <Root />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
