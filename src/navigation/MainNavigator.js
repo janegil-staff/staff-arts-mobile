@@ -1,7 +1,8 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { View, Text, Platform } from "react-native";
+import { View, Text, Platform, Alert } from "react-native";
 import { colors as c, fs, fw, sp } from "../constants/theme";
+import { useAuth } from "../store/authStore";
 
 import HomeScreen from "../screens/home/HomeScreen";
 import ExploreScreen from "../screens/explore/ExploreScreen";
@@ -25,6 +26,8 @@ import SearchScreen from "../screens/search/SearchScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import EditProfileScreen from "../screens/profile/EditProfileScreen";
 import SettingsScreen from "../screens/settings/SettingsScreen";
+import LoginScreen from "../screens/auth/LoginScreen";
+import RegisterScreen from "../screens/auth/RegisterScreen";
 
 var Tab = createBottomTabNavigator();
 
@@ -48,6 +51,8 @@ function TabIcon({ label, icon, focused }) {
 
 function S() { return createNativeStackNavigator(); }
 
+// ── PUBLIC STACKS (no auth needed) ──
+
 var HS = S();
 function HomeNav() {
   return (
@@ -70,12 +75,13 @@ function ExploreNav() {
       <ES.Screen name="ExploreScreen" component={ExploreScreen} options={{ title: "Explore" }} />
       <ES.Screen name="ArtworkDetail" component={ArtworkDetailScreen} options={{ title: "" }} />
       <ES.Screen name="ArtistProfile" component={ArtistProfileScreen} options={{ title: "" }} />
+      <ES.Screen name="Search" component={SearchScreen} options={{ title: "Search" }} />
     </ES.Navigator>
   );
 }
 
 var CS = S();
-function CommunityNav() {
+function ShowsNav() {
   return (
     <CS.Navigator screenOptions={so}>
       <CS.Screen name="FeedScreen" component={FeedScreen} options={{ title: "Community" }} />
@@ -90,26 +96,41 @@ function CommunityNav() {
   );
 }
 
+// ── PROFILE STACK (has login/register screens inside) ──
+
 var PS = S();
 function ProfileNav() {
+  var { ok } = useAuth();
   return (
     <PS.Navigator screenOptions={so}>
-      <PS.Screen name="ProfileScreen" component={ProfileScreen} options={{ title: "Profile" }} />
-      <PS.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit Profile" }} />
-      <PS.Screen name="Orders" component={OrdersScreen} options={{ title: "Orders" }} />
-      <PS.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: "Order" }} />
-      <PS.Screen name="Commissions" component={CommissionsScreen} options={{ title: "Commissions" }} />
-      <PS.Screen name="CommissionDetail" component={CommissionDetailScreen} options={{ title: "Commission" }} />
-      <PS.Screen name="Messages" component={ConversationsScreen} options={{ title: "Messages" }} />
-      <PS.Screen name="Chat" component={ChatScreen} options={function ({ route }) { return { title: route.params?.name || "Chat" }; }} />
-      <PS.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
-      <PS.Screen name="Search" component={SearchScreen} options={{ title: "Search" }} />
-      <PS.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+      {ok ? (
+        <>
+          <PS.Screen name="ProfileScreen" component={ProfileScreen} options={{ title: "Profile" }} />
+          <PS.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit Profile" }} />
+          <PS.Screen name="Orders" component={OrdersScreen} options={{ title: "Orders" }} />
+          <PS.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: "Order" }} />
+          <PS.Screen name="Commissions" component={CommissionsScreen} options={{ title: "Commissions" }} />
+          <PS.Screen name="CommissionDetail" component={CommissionDetailScreen} options={{ title: "Commission" }} />
+          <PS.Screen name="Messages" component={ConversationsScreen} options={{ title: "Messages" }} />
+          <PS.Screen name="Chat" component={ChatScreen} options={function ({ route }) { return { title: route.params?.name || "Chat" }; }} />
+          <PS.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
+          <PS.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+        </>
+      ) : (
+        <>
+          <PS.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <PS.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+        </>
+      )}
     </PS.Navigator>
   );
 }
 
+// ── TAB NAVIGATOR ──
+
 export default function MainNav() {
+  var { ok } = useAuth();
+
   return (
     <Tab.Navigator screenOptions={{
       headerShown: false,
@@ -126,16 +147,30 @@ export default function MainNav() {
     }}>
       <Tab.Screen name="Home" component={HomeNav} options={{ tabBarIcon: function ({ focused }) { return <TabIcon label="Home" icon="🏠" focused={focused} />; } }} />
       <Tab.Screen name="Explore" component={ExploreNav} options={{ tabBarIcon: function ({ focused }) { return <TabIcon label="Explore" icon="🔍" focused={focused} />; } }} />
-      <Tab.Screen name="Upload" component={UploadScreen} options={{
-        tabBarIcon: function () {
-          return (
-            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.teal, alignItems: "center", justifyContent: "center", marginTop: -18, shadowColor: c.teal, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 }}>
-              <Text style={{ fontSize: 28, color: c.textInverse, fontWeight: "700", marginTop: -2 }}>+</Text>
-            </View>
-          );
-        },
-      }} />
-      <Tab.Screen name="Feed" component={CommunityNav} options={{ tabBarIcon: function ({ focused }) { return <TabIcon label="Shows" icon="🎭" focused={focused} />; } }} />
+      <Tab.Screen
+        name="Upload"
+        component={UploadScreen}
+        listeners={function (props) {
+          return {
+            tabPress: function (e) {
+              if (!ok) {
+                e.preventDefault();
+                props.navigation.navigate("Profile");
+              }
+            },
+          };
+        }}
+        options={{
+          tabBarIcon: function () {
+            return (
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.teal, alignItems: "center", justifyContent: "center", marginTop: -18, shadowColor: c.teal, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 }}>
+                <Text style={{ fontSize: 28, color: c.textInverse, fontWeight: "700", marginTop: -2 }}>+</Text>
+              </View>
+            );
+          },
+        }}
+      />
+      <Tab.Screen name="Shows" component={ShowsNav} options={{ tabBarIcon: function ({ focused }) { return <TabIcon label="Shows" icon="🎭" focused={focused} />; } }} />
       <Tab.Screen name="Profile" component={ProfileNav} options={{ tabBarIcon: function ({ focused }) { return <TabIcon label="Profile" icon="👤" focused={focused} />; } }} />
     </Tab.Navigator>
   );

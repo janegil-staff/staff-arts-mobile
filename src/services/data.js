@@ -1,4 +1,3 @@
-import { constructFromSymbol } from "date-fns/constants";
 import * as SecureStore from "expo-secure-store";
 
 var BASE = "http://localhost:3000";
@@ -60,6 +59,8 @@ export var auth = {
   },
 
   register: async function (payload) {
+
+    console.log(payload, BASE + "/api/mobile/auth/register");
     var res = await fetch(BASE + "/api/mobile/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,7 +127,6 @@ export var artworks = {
   },
 
   create: async function (data) {
-    console.log("DATA. --->", data);
     var res = await fetch(BASE + "/api/artworks", {
       method: "POST",
       headers: await authHeaders(),
@@ -142,13 +142,13 @@ export var artworks = {
 
 export var upload = {
   image: async function (uri, folder) {
+    // Step 1: Get Cloudinary signature
     var sigRes = await fetch(BASE + "/api/upload/signature", {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ folder: folder || "staff-arts" }),
     });
     var sigJson = await sigRes.json();
-    console.log("sigJson", sigJson)
     if (!sigRes.ok) throw new Error(sigJson.error || "Signature failed");
     var sig = sigJson.data;
 
@@ -156,7 +156,6 @@ export var upload = {
     var filename = uri.split("/").pop();
     var ext = filename.split(".").pop().toLowerCase();
     var mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-    console.log(mime);
 
     var form = new FormData();
     form.append("file", { uri: uri, type: mime, name: filename });

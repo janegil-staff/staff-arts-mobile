@@ -1,4 +1,4 @@
-export var BASE = "http://192.168.1.XXX:3000";
+export var BASE = "http://localhost:3000";
 
 export var EP = {
   login: "/api/mobile/auth/login",

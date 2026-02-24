@@ -4,7 +4,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, ActivityIndicator, LogBox } from "react-native";
 import { AuthProvider, useAuth } from "./src/store/authStore";
-import AuthNav from "./src/navigation/AuthNavigator";
 import MainNav from "./src/navigation/MainNavigator";
 import { colors } from "./src/constants/theme";
 
@@ -23,7 +22,7 @@ var navTheme = {
 };
 
 function Root() {
-  var { ok, loading } = useAuth();
+  var { loading } = useAuth();
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}>
@@ -34,7 +33,7 @@ function Root() {
   return (
     <NavigationContainer>
       <StatusBar style="light" />
-      {ok ? <MainNav /> : <AuthNav />}
+      <MainNav />
     </NavigationContainer>
   );
 }

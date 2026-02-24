@@ -15,7 +15,7 @@ export default function RegisterScreen({ navigation }) {
   async function onRegister() {
     if (!name || !email || !pass) return Alert.alert("Error", "Fill all fields");
     if (pass.length < 8) return Alert.alert("Error", "Password must be 8+ characters");
-    try { await register({ email: email.trim().toLowerCase(), password: pass, displayName: name.trim(), role }); }
+    try { await register({ email: email.trim().toLowerCase(), password: pass, name: name.trim(), role }); }
     catch (e) { Alert.alert("Failed", e?.message || "Registration failed"); }
   }
 
