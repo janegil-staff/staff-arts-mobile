@@ -1,228 +1,166 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
-  Image,
-  TextInput,
+  FlatList,
   StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  RefreshControl,
+  ScrollView,
 } from "react-native";
-import { artworks } from "../../services/data";
-import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useExplore } from "../../store/exploreStore";
+import { useRefresh } from "../../hooks";
+import ArtworkCard, { CARD_WIDTH } from "../../components/artwork/ArtworkCard";
+import { colors, fs, fw, sp, rad } from "../../constants/theme";
+import { ART_CATEGORIES } from "../../constants";
 
-var W = Dimensions.get("window").width;
-var CW = (W - sp.lg * 2 - sp.sm) / 2;
+export default function ExploreScreen(props) {
+  var navigation = props.navigation;
+  var route = props.route;
+  var store = useExplore();
 
-export default function ExploreScreen({ navigation }) {
-  var [data, setData] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [query, setQuery] = useState("");
-  var [medium, setMedium] = useState("all");
-  var [refreshing, setRefreshing] = useState(false);
-
-  var load = useCallback(
-    async function () {
-      try {
-        var params = {};
-        if (medium !== "all") params.medium = medium;
-        if (query.trim()) params.search = query.trim();
-        var result = await artworks.list(params);
-        setData(Array.isArray(result) ? result : result.artworks || []);
-      } catch (e) {
-        console.log(e);
-      }
-      setLoading(false);
-    },
-    [medium, query],
+  // Local filter state — guaranteed re-render on change
+  var selectedCat = useState(
+    (route && route.params && route.params.category) || null,
   );
+  var active = selectedCat[0];
+  var setActive = selectedCat[1];
 
+  // Fetch when category changes
   useEffect(
     function () {
-      load();
+      if (active) {
+        store.setFilter("category", active);
+      } else {
+        store.clearFilters();
+      }
+      store.fetchArtworks(true);
     },
-    [load],
+    [active],
   );
 
-  var onRefresh = async function () {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
+  var refresh = useCallback(function () {
+    return store.fetchArtworks(true);
+  }, []);
+  var r = useRefresh(refresh);
+  var loadMore = useCallback(
+    function () {
+      if (store.hasMore && !store.isLoading) store.fetchArtworks();
+    },
+    [store.hasMore, store.isLoading],
+  );
 
-  var mediums = [
-    "all",
-    "painting",
-    "sculpture",
-    "photography",
-    "digital",
-    "mixed_media",
-  ];
-
-  if (loading)
-    return (
-      <View style={s.ctr}>
-        <ActivityIndicator color={c.teal} />
-      </View>
-    );
+  function selectCategory(c) {
+    setActive(active === c ? null : c);
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ paddingHorizontal: sp.lg, paddingTop: sp.md }}>
-        <TextInput
-          style={s.search}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search artworks..."
-          placeholderTextColor={c.textMuted}
-          returnKeyType="search"
-          onSubmitEditing={load}
-        />
+    <View style={s.c}>
+      <View style={s.header}>
+        <Text style={s.title}>Explore</Text>
+        <TouchableOpacity style={s.searchBtn}>
+          <Ionicons name="search" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
-      <FlatList
-        data={data}
-        keyExtractor={function (i) {
-          return i._id;
-        }}
-        numColumns={2}
-        contentContainerStyle={{ paddingHorizontal: sp.lg, paddingBottom: 100 }}
-        columnWrapperStyle={{ gap: sp.sm }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={c.teal}
-          />
-        }
-        ListHeaderComponent={
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: sp.sm,
-              marginBottom: sp.md,
-              marginTop: sp.md,
-            }}
-          >
-            {mediums.map(function (m) {
-              var active = medium === m;
-              return (
-                <TouchableOpacity
-                  key={m}
-                  style={[s.chip, active && s.chipActive]}
-                  onPress={function () {
-                    setMedium(m);
-                  }}
-                >
-                  <Text style={[s.chipText, active && s.chipTextActive]}>
-                    {m === "mixed_media"
-                      ? "Mixed"
-                      : m.charAt(0).toUpperCase() + m.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        }
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 60 }}>
-            <Text style={{ fontSize: 40, marginBottom: sp.md }}>🎨</Text>
-            <Text style={{ fontSize: fs.lg, color: c.textSecondary }}>
-              No artworks found
-            </Text>
-          </View>
-        }
-        renderItem={function (info) {
-          var item = info.item;
-          var idx = info.index;
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.filterRow}
+        style={{ maxHeight: 32 }}
+      >
+        <TouchableOpacity
+          onPress={function () {
+            setActive(null);
+          }}
+          style={[s.chip, !active && s.chipOn]}
+        >
+          <Text style={[s.chipTxt, !active && s.chipTxtOn]}>All</Text>
+        </TouchableOpacity>
+        {ART_CATEGORIES.map(function (c) {
           return (
             <TouchableOpacity
-              style={{ width: CW, marginBottom: sp.md }}
+              key={c}
+              onPress={function () {
+                selectCategory(c);
+              }}
+              style={[s.chip, active === c && s.chipOn]}
+            >
+              <Text style={[s.chipTxt, active === c && s.chipTxtOn]}>{c}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <FlatList
+        data={store.artworks || []}
+        keyExtractor={function (item, i) {
+          return item._id || String(i);
+        }}
+        numColumns={2}
+        columnWrapperStyle={{ gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        onRefresh={r.onRefresh}
+        refreshing={r.refreshing}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        renderItem={function (info) {
+          var item = info.item;
+          var index = info.index;
+          return (
+            <ArtworkCard
+              artwork={item}
+              index={index}
               onPress={function () {
                 navigation.navigate("ArtworkDetail", { id: item._id });
               }}
-            >
-              <Image
-                source={{ uri: item.primaryImage }}
-                style={{
-                  width: "100%",
-                  aspectRatio: 0.75,
-                  borderRadius: rad.md,
-                  backgroundColor: c.surfaceDim,
-                }}
-              />
-              <Text
-                style={{
-                  fontSize: fs.sm,
-                  fontWeight: fw.medium,
-                  color: c.text,
-                  marginTop: sp.xs,
-                }}
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
-              {item.artistId?.displayName && (
-                <Text
-                  style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 2 }}
-                >
-                  {item.artistId.displayName}
-                </Text>
-              )}
-              {item.pricing?.price > 0 && (
-                <Text
-                  style={{
-                    fontSize: fs.sm,
-                    color: c.amber,
-                    fontWeight: fw.bold,
-                    marginTop: 2,
-                  }}
-                >
-                  ${item.pricing.price.toLocaleString()}
-                </Text>
-              )}
-            </TouchableOpacity>
+              onLike={function () {
+                store.likeArtwork(item._id);
+              }}
+            />
           );
         }}
+        ListEmptyComponent={
+          !store.isLoading ? (
+            <View style={s.empty}>
+              <Text style={s.emptyIcon}>🎨</Text>
+              <Text style={s.emptyTitle}>No artworks yet</Text>
+            </View>
+          ) : null
+        }
       />
     </View>
   );
 }
 
 var s = StyleSheet.create({
-  ctr: {
-    flex: 1,
-    justifyContent: "center",
+  c: { flex: 1, backgroundColor: colors.bg },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: c.bg,
-  },
-  search: {
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: rad.md,
     paddingHorizontal: sp.md,
-    paddingVertical: 14,
-    fontSize: fs.md,
-    color: c.text,
+    paddingTop: sp.xs,
+    paddingBottom: sp.xs,
   },
+  title: { fontSize: fs.xxl, fontWeight: fw.bold, color: colors.text },
+  searchBtn: {
+    padding: sp.sm,
+    backgroundColor: colors.surface,
+    borderRadius: rad.md,
+  },
+  filterRow: { paddingHorizontal: sp.md, paddingBottom: 2, gap: 4 },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 7,
+    backgroundColor: colors.surface,
     borderRadius: rad.full,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
+    borderWidth: 0.5,
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: c.teal, borderColor: c.teal },
-  chipText: {
-    fontSize: fs.sm,
-    color: c.textSecondary,
-    fontWeight: fw.medium,
-    textTransform: "capitalize",
-  },
-  chipTextActive: { color: c.textInverse },
+  chipOn: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  chipTxt: { color: colors.textSecondary, fontSize: 10 },
+  chipTxtOn: { color: colors.accent, fontWeight: fw.semibold, fontSize: 10 },
+  empty: { alignItems: "center", paddingTop: 80 },
+  emptyIcon: { fontSize: 48, marginBottom: sp.md },
+  emptyTitle: { color: colors.text, fontSize: fs.lg, fontWeight: fw.semibold },
 });

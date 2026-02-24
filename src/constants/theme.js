@@ -26,9 +26,12 @@ var bone = "#C8C8D0";          // primary text — not pure white, easier on eye
 var snow = "#EDEDF0";          // headings, emphasis
 var pure = "#FFFFFF";          // inverse, button labels
 
-var safelight = "#F0A830";     // amber — warm, inviting, the red-orange glow
+var safelight = "#F0A830";     // amber — kept for gold/premium badges
 var safeSoft = "rgba(240,168,48,0.10)";
 var safeGlow = "rgba(240,168,48,0.20)";
+var indigo = "#3EC9D1";        // cool cyan — buttons, links, active states
+var indigoSoft = "rgba(62,201,209,0.10)";
+var indigoGlow = "rgba(62,201,209,0.20)";
 var chemical = "#3EC9D1";      // cyan — cool contrast, discovery, tags
 var chemSoft = "rgba(62,201,209,0.10)";
 var fixer = "#E85D75";         // rose-red — likes, hearts, alerts
@@ -46,21 +49,21 @@ export var colors = {
   hover: ash,
   overlay: "rgba(0,0,0,0.6)",
   scrim: "rgba(0,0,0,0.4)",
-  shimmer: "rgba(240,168,48,0.03)",
+  shimmer: "rgba(62,201,209,0.03)",
 
   // Text hierarchy
   text: snow,
   textSecondary: bone,
   textMuted: cloud,
   textDim: stone,
-  textInverse: void0,
+  textInverse: "#0C0C0E",
 
-  // Primary accent — safelight amber
-  accent: safelight,
-  accentLight: "#F5BF5E",
-  accentDark: "#D4922A",
-  accentMuted: safeSoft,
-  accentGlow: safeGlow,
+  // Primary accent — indigo
+  accent: indigo,
+  accentLight: "#5DD9DF",
+  accentDark: "#2AABB2",
+  accentMuted: indigoSoft,
+  accentGlow: indigoGlow,
 
   // Secondary — chemical cyan for tags, discovery, filters
   cyan: chemical,
@@ -73,7 +76,7 @@ export var colors = {
   coralMuted: fixerSoft,
   rose: fixer,
 
-  // Premium — gold is the accent itself
+  // Premium — warm amber for gold badges
   gold: safelight,
   goldMuted: safeSoft,
   amber: safelight,
@@ -89,8 +92,8 @@ export var colors = {
   // Borders — barely visible, just enough structure
   border: fog,
   borderLight: ash,
-  borderAccent: safeGlow,
-  borderFocus: safelight,
+  borderAccent: indigoGlow,
+  borderFocus: indigo,
 
   white: pure,
   black: "#000000",
@@ -206,7 +209,7 @@ export var shadows = {
     elevation: 8,
   },
   glow: {
-    shadowColor: safelight,
+    shadowColor: indigo,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.25,
     shadowRadius: 16,

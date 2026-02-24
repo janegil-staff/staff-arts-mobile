@@ -1,6 +1,105 @@
-import{useState,useEffect}from"react";import{View,Text,FlatList,TouchableOpacity as T,Image,ActivityIndicator}from"react-native";import{posts}from"../../services/data";import{colors as c,fs,fw,sp,rad}from"../../constants/theme";import{formatDistanceToNow}from"date-fns";
-export default function Feed({navigation:n}){var[data,sD]=useState([]);var[ld,sL]=useState(true);
-useEffect(()=>{(async()=>{try{var d=await posts.feed();sD(d.posts||[])}catch{}sL(false)})()},[]);
-var onLike=async(id,i)=>{try{var r=await posts.like(id);var u=[...data];u[i]={...u[i],_lk:r.liked,likes:r.liked?[...(u[i].likes||[]),"x"]:(u[i].likes||[]).slice(0,-1)};sD(u)}catch{}};
-if(ld)return<View style={{flex:1,justifyContent:"center",alignItems:"center",backgroundColor:c.bg}}><ActivityIndicator color={c.teal}/></View>;
-return<FlatList style={{flex:1,backgroundColor:c.bg}} data={data} keyExtractor={i=>i._id} contentContainerStyle={{paddingBottom:100}} ListEmptyComponent={<Text style={{textAlign:"center",color:c.textMuted,marginTop:60}}>No posts yet</Text>} renderItem={({item:i,index:idx})=>{var a=i.authorId;return<View style={{borderBottomWidth:1,borderBottomColor:c.borderLight,paddingVertical:sp.lg,paddingHorizontal:sp.lg}}><T style={{flexDirection:"row",alignItems:"center",gap:sp.md,marginBottom:sp.md}} onPress={()=>a?.username&&n.navigate("ArtistProfile",{username:a.username})}>{a?.avatar?<Image source={{uri:a.avatar}} style={{width:42,height:42,borderRadius:21}}/>:<View style={{width:42,height:42,borderRadius:21,backgroundColor:c.surfaceDim}}/>}<View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:sp.sm}}><Text style={{fontSize:fs.md,fontWeight:fw.semi,color:c.text}}>{a?.displayName||"Unknown"}</Text>{a?.role==="artist"&&<View style={{backgroundColor:c.tealBg,borderRadius:rad.sm,paddingHorizontal:6,paddingVertical:2}}><Text style={{fontSize:8,color:c.teal,fontWeight:fw.bold}}>ARTIST</Text></View>}</View><Text style={{fontSize:fs.xs,color:c.textMuted,marginTop:2}}>{formatDistanceToNow(new Date(i.createdAt),{addSuffix:true})}</Text></View></T>{i.content&&<Text style={{fontSize:fs.md,color:c.text,lineHeight:23,marginBottom:sp.md}}>{i.content}</Text>}{i.images?.length>0&&<Image source={{uri:i.images[0]}} style={{width:"100%",height:260,borderRadius:rad.md,backgroundColor:c.surfaceDim,marginBottom:sp.md}}/>}<View style={{flexDirection:"row",gap:sp.xl}}><T onPress={()=>onLike(i._id,idx)} style={{flexDirection:"row",alignItems:"center",gap:sp.xs}}><Text style={{fontSize:18,color:i._lk?c.error:c.textMuted}}>{i._lk?"♥":"♡"}</Text><Text style={{fontSize:fs.sm,color:c.textMuted}}>{i.likes?.length||0}</Text></T><View style={{flexDirection:"row",alignItems:"center",gap:sp.xs}}><Text style={{fontSize:18,color:c.textMuted}}>💬</Text><Text style={{fontSize:fs.sm,color:c.textMuted}}>{i.comments?.length||0}</Text></View></View></View>}}/>}
+import React, { useEffect, useCallback } from "react";
+import { View, Text, TouchableOpacity, FlatList, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { Avatar } from "../../components/ui";
+import { useFeed } from "../../store/feedStore";
+import { useRefresh } from "../../hooks";
+import { haptics } from "../../utils/haptics";
+import { timeAgo, formatCount } from "../../utils";
+import { colors, sp, rad, fs, fw, glassCard } from "../../constants/theme";
+
+export default function FeedScreen({ navigation }) {
+  var ins = useSafeAreaInsets();
+  var store = useFeed();
+
+  useEffect(function () { store.fetchFeed(true); }, []);
+
+  var refresh = useCallback(function () { return store.fetchFeed(true); }, []);
+  var r = useRefresh(refresh);
+  var loadMore = useCallback(function () { if (store.hasMore && !store.isLoading) store.fetchFeed(); }, [store.hasMore, store.isLoading]);
+
+  function renderPost(item) {
+    var post = item.item;
+    var user = post.user || post.author || {};
+    return (
+      <View style={[s.post, glassCard]}>
+        <TouchableOpacity style={s.postHeader} onPress={function () { if (user._id) navigation.navigate("ArtistProfile", { id: user._id }); }}>
+          <Avatar name={user.name || user.displayName} imageUrl={user.avatar} size={40} />
+          <View style={s.postUserInfo}>
+            <Text style={s.postUserName}>{user.name || user.displayName || "User"}</Text>
+            <Text style={s.postTime}>{timeAgo(post.createdAt)}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {post.content ? <Text style={s.postContent}>{post.content}</Text> : null}
+
+        {post.images && post.images.length > 0 ? (
+          <Image source={{ uri: post.images[0].url || post.images[0] }} style={s.postImg} contentFit="cover" transition={200} />
+        ) : null}
+
+        {post.artwork ? (
+          <TouchableOpacity style={s.artworkLink} onPress={function () { navigation.navigate("ArtworkDetail", { id: post.artwork._id || post.artwork }); }}>
+            <Ionicons name="image-outline" size={16} color={colors.accent} />
+            <Text style={s.artworkLinkTxt}>{post.artwork.title || "View artwork"}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={s.postActions}>
+          <TouchableOpacity style={s.postAction} onPress={function () { haptics.light(); store.likePost(post._id); }}>
+            <Ionicons name={post.isLiked ? "heart" : "heart-outline"} size={20} color={post.isLiked ? colors.danger : colors.textSecondary} />
+            <Text style={s.postActionTxt}>{formatCount(post.likesCount || 0)}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.postAction}>
+            <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+            <Text style={s.postActionTxt}>{formatCount(post.commentsCount || 0)}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.postAction}>
+            <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[s.c, { paddingTop: ins.top }]}>
+      <FlatList
+        data={store.posts}
+        keyExtractor={function (item) { return item._id; }}
+        renderItem={renderPost}
+        contentContainerStyle={s.list}
+        showsVerticalScrollIndicator={false}
+        refreshing={r.refreshing}
+        onRefresh={r.onRefresh}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={!store.isLoading ? (
+          <View style={s.empty}><Text style={s.emptyIcon}>📝</Text><Text style={s.emptyTxt}>No posts yet</Text><Text style={s.emptySub}>Follow artists to see their updates</Text></View>
+        ) : null}
+      />
+    </View>
+  );
+}
+
+var s = StyleSheet.create({
+  c: { flex: 1, backgroundColor: colors.bg },
+  list: { paddingHorizontal: sp.md, paddingBottom: 100 },
+  post: { marginBottom: sp.md, padding: sp.md },
+  postHeader: { flexDirection: "row", alignItems: "center", marginBottom: sp.sm },
+  postUserInfo: { marginLeft: sp.sm, flex: 1 },
+  postUserName: { fontSize: fs.md, fontWeight: fw.semibold, color: colors.text },
+  postTime: { fontSize: fs.xs, color: colors.textMuted, marginTop: 1 },
+  postContent: { fontSize: fs.md, color: colors.textSecondary, lineHeight: 22, marginBottom: sp.sm },
+  postImg: { width: "100%", aspectRatio: 4 / 3, borderRadius: rad.md, marginBottom: sp.sm },
+  artworkLink: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: sp.sm },
+  artworkLinkTxt: { fontSize: fs.sm, color: colors.accent },
+  postActions: { flexDirection: "row", gap: sp.lg, paddingTop: sp.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  postAction: { flexDirection: "row", alignItems: "center", gap: 4 },
+  postActionTxt: { fontSize: fs.sm, color: colors.textSecondary },
+  empty: { alignItems: "center", paddingTop: 100 },
+  emptyIcon: { fontSize: 48, marginBottom: sp.md },
+  emptyTxt: { fontSize: fs.lg, fontWeight: fw.semibold, color: colors.text },
+  emptySub: { fontSize: fs.sm, color: colors.textMuted, marginTop: 4 },
+});

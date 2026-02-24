@@ -1,55 +1,87 @@
 import * as SecureStore from "expo-secure-store";
-import { BASE, EP } from "../constants/api";
+import { API_URL } from "../constants/api";
 
-async function getToken() {
-  try { return await SecureStore.getItemAsync("token"); } catch { return null; }
-}
+function request(endpoint, options) {
+  var opts = options || {};
+  var method = opts.method || "GET";
+  var body = opts.body;
+  var custom = opts.headers || {};
+  var skipAuth = opts.skipAuth || false;
 
-async function setTokens(token, refresh) {
-  await SecureStore.setItemAsync("token", token);
-  if (refresh) await SecureStore.setItemAsync("rtoken", refresh);
-}
-
-async function clearTokens() {
-  await SecureStore.deleteItemAsync("token");
-  await SecureStore.deleteItemAsync("rtoken");
-}
-
-async function refreshToken() {
-  try {
-    var rt = await SecureStore.getItemAsync("rtoken");
-    if (!rt) return false;
-    var res = await fetch(BASE + EP.refresh, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: rt }),
-    });
-    if (!res.ok) return false;
-    var data = await res.json();
-    await setTokens(data.data.token, data.data.refreshToken);
-    return true;
-  } catch { return false; }
-}
-
-export async function api(path, opts) {
-  var token = await getToken();
   var headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = "Bearer " + token;
-  if (opts && opts.headers) Object.assign(headers, opts.headers);
-
-  var res = await fetch(BASE + path, Object.assign({}, opts, { headers }));
-
-  if (res.status === 401 && token) {
-    var refreshed = await refreshToken();
-    if (refreshed) {
-      headers.Authorization = "Bearer " + (await getToken());
-      res = await fetch(BASE + path, Object.assign({}, opts, { headers }));
-    }
+  var keys = Object.keys(custom);
+  for (var i = 0; i < keys.length; i++) {
+    headers[keys[i]] = custom[keys[i]];
   }
 
-  var json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Request failed");
-  return json.data || json;
+  function doFetch(authHeaders) {
+    var config = { method: method, headers: authHeaders };
+    if (body && method !== "GET") config.body = JSON.stringify(body);
+
+    return fetch(API_URL + endpoint, config).then(function (res) {
+      var status = res.status;
+
+      if (status === 401 && !skipAuth) {
+        return SecureStore.deleteItemAsync("token").then(function () {
+          var err = new Error("Session expired");
+          err.status = 401;
+          throw err;
+        });
+      }
+
+      return res.text().then(function (text) {
+        var data;
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+
+        if (!res.ok) {
+          var err = new Error(data.error || data.message || "Request failed");
+          err.status = status;
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
+  if (skipAuth) {
+    return doFetch(headers);
+  }
+
+  return SecureStore.getItemAsync("token").then(function (token) {
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return doFetch(headers);
+  });
 }
 
-export { getToken, setTokens, clearTokens };
+var api = {
+  get: function (ep, opts) {
+    var o = opts || {};
+    o.method = "GET";
+    return request(ep, o);
+  },
+  post: function (ep, body, opts) {
+    var o = opts || {};
+    o.method = "POST";
+    o.body = body;
+    return request(ep, o);
+  },
+  put: function (ep, body, opts) {
+    var o = opts || {};
+    o.method = "PUT";
+    o.body = body;
+    return request(ep, o);
+  },
+  patch: function (ep, body, opts) {
+    var o = opts || {};
+    o.method = "PATCH";
+    o.body = body;
+    return request(ep, o);
+  },
+  del: function (ep, opts) {
+    var o = opts || {};
+    o.method = "DELETE";
+    return request(ep, o);
+  },
+};
+
+export default api;

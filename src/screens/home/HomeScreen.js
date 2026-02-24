@@ -1,13 +1,106 @@
-import{useState,useEffect,useCallback}from"react";import{View,Text,FlatList,TouchableOpacity as T,Image,StyleSheet as S,RefreshControl,Dimensions,ScrollView}from"react-native";import{artworks,events as evSvc}from"../../services/data";import{useAuth}from"../../store/authStore";import{colors as c,fs,fw,sp,rad}from"../../constants/theme";import{format}from"date-fns";
-var W=Dimensions.get("window").width,FW=W*0.72;
-export default function Home({navigation:n}){var{user}=useAuth();var[feat,sF]=useState([]);var[rec,sR]=useState([]);var[evs,sE]=useState([]);var[ref,sRef]=useState(false);
-var load=useCallback(async()=>{try{var[f,r,e]=await Promise.all([artworks.list({featured:true,limit:10,status:"all"}),artworks.list({sort:"newest",limit:10,status:"all"}),evSvc.list({})]);sF(f.artworks||[]);sR(r.artworks||[]);sE(e.events||[])}catch(e){console.log(e)}},[]);
-useEffect(()=>{load()},[load]);
-var hr=new Date().getHours(),g=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening";
-return<ScrollView style={{flex:1,backgroundColor:c.bg}} contentContainerStyle={{paddingBottom:100}} refreshControl={<RefreshControl refreshing={ref} onRefresh={async()=>{sRef(true);await load();sRef(false)}} tintColor={c.teal}/>} showsVerticalScrollIndicator={false}>
-<View style={{paddingHorizontal:sp.lg,paddingTop:sp.sm,paddingBottom:sp.lg}}><Text style={{fontSize:fs.sm,color:c.textMuted}}>{g},</Text><Text style={{fontSize:fs.xxl,fontWeight:fw.light,color:c.text}}>{user?.displayName?.split(" ")[0]||"there"}</Text></View>
-<View style={s.sec}><View style={s.sh}><Text style={s.sl}>CURATED</Text><T onPress={()=>n.navigate("Explore")}><Text style={{fontSize:fs.sm,color:c.teal}}>See all</Text></T></View>
-<FlatList data={feat} horizontal showsHorizontalScrollIndicator={false} snapToInterval={FW+sp.md} decelerationRate="fast" contentContainerStyle={{paddingLeft:sp.lg,paddingRight:sp.md}} keyExtractor={i=>i._id} renderItem={({item:i})=><T style={s.fc} onPress={()=>n.navigate("ArtworkDetail",{id:i._id})}><Image source={{uri:i.primaryImage}} style={s.fi}/><View style={{padding:sp.md,paddingBottom:sp.xs}}><Text style={{fontSize:fs.md,fontWeight:fw.semi,color:c.text}} numberOfLines={1}>{i.title}</Text><Text style={{fontSize:fs.sm,color:c.textSecondary,marginTop:2}} numberOfLines={1}>{i.artistId?.displayName}</Text></View>{i.pricing?.price>0&&<Text style={{paddingHorizontal:sp.md,paddingBottom:sp.md,fontSize:fs.sm,fontWeight:fw.bold,color:c.teal}}>${i.pricing.price.toLocaleString()}</Text>}</T>}/></View>
-{evs.length>0&&<View style={s.sec}><View style={s.sh}><Text style={s.sl}>UPCOMING</Text></View>{evs.slice(0,3).map(e=><T key={e._id} style={s.ec} onPress={()=>n.getParent()?.navigate("Events",{screen:"EventDetail",params:{event:e}})}><View style={{width:8,height:8,borderRadius:4,backgroundColor:c.tealLight,marginTop:6}}/><View style={{flex:1}}><Text style={{fontSize:fs.xs,color:c.tealLight,fontWeight:fw.semi,textTransform:"capitalize"}}>{e.type?.replace("_"," ")}</Text><Text style={{fontSize:fs.md,fontWeight:fw.medium,color:c.text,marginTop:2}}>{e.title}</Text><Text style={{fontSize:fs.xs,color:c.textMuted,marginTop:4}}>{e.startDate?format(new Date(e.startDate),"MMM d"):""}{e.venue?.city?` · ${e.venue.city}`:""}</Text></View></T>)}</View>}
-<View style={s.sec}><View style={s.sh}><Text style={s.sl}>JUST ADDED</Text></View><View style={{flexDirection:"row",flexWrap:"wrap",paddingHorizontal:sp.lg,gap:sp.sm}}>{rec.slice(0,6).map(i=><T key={i._id} style={{width:(W-sp.lg*2-sp.sm*2)/3}} onPress={()=>n.navigate("ArtworkDetail",{id:i._id})}><Image source={{uri:i.primaryImage}} style={{width:"100%",aspectRatio:0.8,borderRadius:rad.sm,backgroundColor:c.surfaceDim}}/><Text style={{fontSize:fs.xs,fontWeight:fw.medium,color:c.text,marginTop:sp.xs}} numberOfLines={1}>{i.title}</Text></T>)}</View></View></ScrollView>}
-var s=S.create({sec:{marginBottom:sp.xl},sh:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",paddingHorizontal:sp.lg,marginBottom:sp.md},sl:{fontSize:fs.xxs,letterSpacing:2,color:c.textMuted,fontWeight:fw.semi},fc:{width:FW,marginRight:sp.md,backgroundColor:c.surface,borderRadius:rad.lg,overflow:"hidden",borderWidth:1,borderColor:c.borderLight},fi:{width:FW,height:FW*1.15,backgroundColor:c.surfaceDim},ec:{flexDirection:"row",alignItems:"flex-start",gap:sp.md,marginHorizontal:sp.lg,backgroundColor:c.surface,borderRadius:rad.md,padding:sp.md,marginBottom:sp.sm,borderWidth:1,borderColor:c.borderLight}});
+import React, { useEffect, useCallback } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useExplore } from "../../store/exploreStore";
+import { useRefresh } from "../../hooks";
+import ArtworkCard from "../../components/artwork/ArtworkCard";
+import { colors, fs, fw, sp, rad, screen } from "../../constants/theme";
+import { ART_CATEGORIES } from "../../constants";
+
+function placeholders(n) {
+  return Array.from({ length: n }, function (_, i) {
+    return { _id: null, title: "Artwork " + (i + 1), images: [], artist: { name: "Artist" }, likesCount: 0, isLiked: false, forSale: false, price: 0, currency: "USD" };
+  });
+}
+
+export default function HomeScreen({ navigation }) {
+  var ins = useSafeAreaInsets();
+  var store = useExplore();
+
+  useEffect(function () { store.fetchFeatured(); store.fetchArtworks(true); }, []);
+
+  var refresh = useCallback(function () { return Promise.all([store.fetchFeatured(), store.fetchArtworks(true)]); }, []);
+  var r = useRefresh(refresh);
+
+  var items = store.artworks.length > 0 ? store.artworks.slice(0, 10) : placeholders(6);
+  var feat = store.featured.length > 0 ? store.featured : placeholders(5);
+
+  return (
+    <ScrollView style={[s.c, { paddingTop: ins.top }]} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={r.refreshing} onRefresh={r.onRefresh} tintColor={colors.accent} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}>
+
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={s.logo}>Staff<Text style={{ color: colors.accent }}>Arts</Text></Text>
+        <View style={s.headerR}>
+          <TouchableOpacity onPress={function () { navigation.navigate("Messages"); }} style={s.iconBtn}><Ionicons name="chatbubble-outline" size={22} color={colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={function () { navigation.navigate("Notifications"); }} style={s.iconBtn}><Ionicons name="notifications-outline" size={22} color={colors.textSecondary} /></TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Categories */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.cats}>
+        {ART_CATEGORIES.map(function (c) {
+          return <TouchableOpacity key={c} onPress={function () { navigation.navigate("Explore", { screen: "ExploreMain", params: { category: c } }); }} style={s.chip} activeOpacity={0.7}><Text style={s.chipTxt}>{c}</Text></TouchableOpacity>;
+        })}
+      </ScrollView>
+
+      {/* Featured carousel */}
+      <View style={s.sec}>
+        <View style={s.secH}>
+          <Text style={s.secT}>✦ Featured</Text>
+          <TouchableOpacity onPress={function () { navigation.navigate("Explore"); }}><Text style={s.seeAll}>See all</Text></TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.featScroll} snapToInterval={screen.width * 0.7 + sp.md} decelerationRate="fast">
+          {feat.map(function (item, i) {
+            return (
+              <TouchableOpacity key={item._id || i} activeOpacity={0.85} onPress={function () { if (item._id) navigation.navigate("ArtworkDetail", { id: item._id }); }} style={s.featCard}>
+                <View style={s.featImg}>
+                  {item.images && item.images[0]
+                    ? <Image source={{ uri: item.images[0].url }} style={{ width: "100%", height: "100%" }} contentFit="cover" transition={300} />
+                    : <View style={s.ph}><Ionicons name="image-outline" size={28} color={colors.textMuted} /></View>}
+                </View>
+                <Text style={s.featTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={s.featArtist} numberOfLines={1}>{item.artist && item.artist.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Recent grid */}
+      <View style={s.sec}>
+        <Text style={[s.secT, { paddingHorizontal: sp.md, marginBottom: sp.md }]}>Recent Works</Text>
+        <View style={s.grid}>
+          {items.map(function (item, i) {
+            return <ArtworkCard key={item._id || i} artwork={item} onPress={function () { if (item._id) navigation.navigate("ArtworkDetail", { id: item._id }); }} onLike={item._id ? function () { store.likeArtwork(item._id); } : undefined} />;
+          })}
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+var s = StyleSheet.create({
+  c: { flex: 1, backgroundColor: colors.bg },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: sp.md, paddingVertical: sp.md },
+  logo: { fontSize: fs.xxl, fontWeight: fw.bold, color: colors.text },
+  headerR: { flexDirection: "row", gap: sp.xs },
+  iconBtn: { padding: sp.sm, borderRadius: rad.md },
+  cats: { paddingHorizontal: sp.md, paddingBottom: sp.md, gap: sp.sm },
+  chip: { paddingHorizontal: sp.md, paddingVertical: sp.sm, backgroundColor: colors.surface, borderRadius: rad.full, borderWidth: 1, borderColor: colors.border },
+  chipTxt: { color: colors.textSecondary, fontSize: fs.sm },
+  sec: { marginTop: sp.md },
+  secH: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: sp.md, marginBottom: sp.md },
+  secT: { color: colors.text, fontSize: fs.lg, fontWeight: fw.bold },
+  seeAll: { color: colors.accent, fontSize: fs.sm, fontWeight: fw.medium },
+  featScroll: { paddingLeft: sp.md, paddingRight: sp.sm },
+  featCard: { width: screen.width * 0.7, marginRight: sp.md },
+  featImg: { width: "100%", aspectRatio: 3 / 4, borderRadius: rad.lg, overflow: "hidden", backgroundColor: colors.surface, marginBottom: sp.sm },
+  ph: { flex: 1, alignItems: "center", justifyContent: "center" },
+  featTitle: { color: colors.text, fontSize: fs.md, fontWeight: fw.semibold },
+  featArtist: { color: colors.textSecondary, fontSize: fs.sm, marginTop: 2 },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: sp.md, gap: 8 },
+});

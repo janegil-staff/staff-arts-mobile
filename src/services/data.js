@@ -1,119 +1,116 @@
-import { api, getToken, setTokens, clearTokens } from "./api";
-import { BASE, EP } from "../constants/api";
+import api from "./api";
+import { API, API_URL } from "../constants/api";
 
-// ── Auth ──
-export var auth = {
-  login: async function (email, password) {
-    var res = await fetch(BASE + EP.login, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+export var artworkService = {
+  getAll: function (params) { return api.get(API.artworks + (params ? "?" + params : "")); },
+  getById: function (id) { return api.get(API.artworks + "/" + id); },
+  create: function (data) { return api.post(API.artworks, data); },
+  update: function (id, data) { return api.put(API.artworks + "/" + id, data); },
+  remove: function (id) { return api.del(API.artworks + "/" + id); },
+  like: function (id) { return api.post(API.artworks + "/" + id + "/like"); },
+  save: function (id) { return api.post(API.artworks + "/" + id + "/save"); },
+  getComments: function (id, page) { return api.get(API.artworks + "/" + id + "/comments?page=" + (page || 1)); },
+  addComment: function (id, content) { return api.post(API.artworks + "/" + id + "/comments", { content: content }); },
+};
+
+export var userService = {
+  getById: function (id) { return api.get(API.users + "/" + id); },
+  getBySlug: function (slug) { return api.get(API.users + "/slug/" + slug); },
+  follow: function (id) { return api.post(API.users + "/" + id + "/follow"); },
+  getArtworks: function (id, page) { return api.get(API.users + "/" + id + "/artworks?page=" + (page || 1)); },
+};
+
+export var postService = {
+  getFeed: function (page) { return api.get(API.posts + "/feed?page=" + (page || 1)); },
+  create: function (data) { return api.post(API.posts, data); },
+  remove: function (id) { return api.del(API.posts + "/" + id); },
+  like: function (id) { return api.post(API.posts + "/" + id + "/like"); },
+  addComment: function (id, content) { return api.post(API.posts + "/" + id + "/comments", { content: content }); },
+};
+
+export var exhibitionService = {
+  getAll: function (params) { return api.get(API.exhibitions + (params ? "?" + params : "")); },
+  getById: function (id) { return api.get(API.exhibitions + "/" + id); },
+  attend: function (id) { return api.post(API.exhibitions + "/" + id + "/attend"); },
+};
+
+export var eventService = {
+  getAll: function (params) { return api.get(API.events + (params ? "?" + params : "")); },
+  getById: function (id) { return api.get(API.events + "/" + id); },
+  rsvp: function (id) { return api.post(API.events + "/" + id + "/rsvp"); },
+};
+
+export var orderService = {
+  getAll: function () { return api.get(API.orders); },
+  getById: function (id) { return api.get(API.orders + "/" + id); },
+  create: function (artworkId) { return api.post(API.orders, { artworkId: artworkId }); },
+};
+
+export var messageService = {
+  getConversations: function () { return api.get(API.conversations); },
+  getMessages: function (id, page) { return api.get(API.messages + "/" + id + "?page=" + (page || 1)); },
+  send: function (id, content) { return api.post(API.messages + "/" + id, { content: content }); },
+  startConversation: function (userId, content) { return api.post(API.conversations, { userId: userId, content: content }); },
+};
+
+export var notificationService = {
+  getAll: function (page) { return api.get(API.notifications + "?page=" + (page || 1)); },
+  markAsRead: function (id) { return api.patch(API.notifications + "/" + id + "/read"); },
+  markAllAsRead: function () { return api.patch(API.notifications + "/read-all"); },
+};
+
+export var uploadService = {
+  image: function (uri, folder) {
+    var SecureStore = require("expo-secure-store");
+
+    return SecureStore.getItemAsync("token").then(function (token) {
+      // Step 1: Get signature from backend
+      return fetch(API_URL + API.upload, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? "Bearer " + token : "",
+        },
+        body: JSON.stringify({ folder: folder || "artworks" }),
+      });
+    }).then(function (res) {
+      return res.json();
+    }).then(function (signData) {
+      if (!signData.success) throw new Error(signData.error || "Failed to get upload signature");
+
+      var params = signData.data;
+      var name = uri.split("/").pop() || "photo.jpg";
+      var ext = name.split(".").pop();
+
+      // Step 2: Upload directly to Cloudinary
+      var fd = new FormData();
+      fd.append("file", { uri: uri, name: name, type: "image/" + (ext === "png" ? "png" : "jpeg") });
+      fd.append("api_key", params.apiKey);
+      fd.append("timestamp", String(params.timestamp));
+      fd.append("signature", params.signature);
+      fd.append("folder", params.folder);
+
+      return fetch(params.uploadUrl, { method: "POST", body: fd });
+    }).then(function (res) {
+      return res.json();
+    }).then(function (cloudData) {
+      if (cloudData.error) throw new Error(cloudData.error.message || "Cloudinary upload failed");
+      return {
+        data: {
+          url: cloudData.secure_url,
+          publicId: cloudData.public_id,
+          width: cloudData.width,
+          height: cloudData.height,
+          format: cloudData.format,
+          bytes: cloudData.bytes,
+        },
+      };
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Login failed");
-    var d = json.data;
-    await setTokens(d.token, d.refreshToken);
-    return d;
-  },
-  register: async function (payload) {
-    var res = await fetch(BASE + EP.register, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Registration failed");
-    var d = json.data;
-    await setTokens(d.token, d.refreshToken);
-    return d;
-  },
-  me: function () { return api(EP.me); },
-  check: async function () { return !!(await getToken()); },
-  logout: function () { return clearTokens(); },
-  updateProfile: function (data) {
-    return api(EP.profile, { method: "PUT", body: JSON.stringify(data) });
   },
 };
 
-// ── Artworks ──
-export var artworks = {
-  list: function (params) {
-    var q = params ? "?" + new URLSearchParams(params).toString() : "";
-    return api(EP.artworks + q);
-  },
-  get: function (id) { return api(EP.artworks + "/" + id); },
-  like: function (id) { return api(EP.artworks + "/" + id + "/like", { method: "POST" }); },
-};
-
-// ── Users ──
-export var users = {
-  get: function (username) { return api(EP.users + "/" + username); },
-  follow: function (id) { return api("/api/mobile/users/" + id + "/follow", { method: "POST" }); },
-};
-
-// ── Posts / Feed ──
-export var posts = {
-  list: function () { return api(EP.posts); },
-  like: function (id) { return api(EP.posts + "/" + id + "/like", { method: "POST" }); },
-  comment: function (id, text) {
-    return api(EP.posts + "/" + id + "/comment", { method: "POST", body: JSON.stringify({ text }) });
-  },
-};
-
-// ── Events ──
-export var events = {
-  list: function () { return api(EP.events); },
-  get: function (id) { return api(EP.events + "/" + id); },
-};
-
-// ── Exhibitions ──
-export var exhibitions = {
-  list: function () { return api(EP.exhibitions); },
-  get: function (id) { return api(EP.exhibitions + "/" + id); },
-};
-
-// ── Orders ──
-export var orders = {
-  list: function () { return api(EP.orders); },
-  get: function (id) { return api(EP.orders + "/" + id); },
-};
-
-// ── Commissions ──
-export var commissions = {
-  list: function () { return api(EP.commissions); },
-  get: function (id) { return api(EP.commissions + "/" + id); },
-  update: function (id, data) {
-    return api(EP.commissions + "/" + id, { method: "PUT", body: JSON.stringify(data) });
-  },
-};
-
-// ── Messages ──
-export var msgs = {
-  conversations: function () { return api(EP.conversations); },
-  list: function (conversationId) { return api(EP.messages + "?conversationId=" + conversationId); },
-  send: function (conversationId, text) {
-    return api(EP.messages, { method: "POST", body: JSON.stringify({ conversationId, text }) });
-  },
-};
-
-// ── Music ──
-export var music = {
-  list: function () { return api(EP.music); },
-  play: function (id) { return api(EP.music + "/" + id + "/play", { method: "POST" }); },
-};
-
-// ── Notifications ──
-export var notifs = {
-  list: function () { return api(EP.notifications); },
-  read: function (id) { return api(EP.notifications + "?id=" + id, { method: "PUT" }); },
-  readAll: function () { return api(EP.notifications + "?all=true", { method: "PUT" }); },
-};
-
-// ── Search ──
-export var search = {
-  query: function (q, type) {
-    var params = "?q=" + encodeURIComponent(q);
-    if (type && type !== "all") params += "&type=" + type;
-    return api(EP.search + params);
+export var searchService = {
+  search: function (q, type) {
+    return api.get(API.search + "?q=" + encodeURIComponent(q) + (type ? "&type=" + type : ""));
   },
 };
