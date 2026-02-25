@@ -59,8 +59,6 @@ export var auth = {
   },
 
   register: async function (payload) {
-
-    console.log(payload, BASE + "/api/mobile/auth/register");
     var res = await fetch(BASE + "/api/mobile/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

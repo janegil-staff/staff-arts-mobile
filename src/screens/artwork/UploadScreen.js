@@ -1,12 +1,51 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Switch, Image, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Switch,
+  Image,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { artworks, upload } from "../../services/data";
 import { useAuth } from "../../store/authStore";
 import { colors as c, sp, rad, fs, fw } from "../../constants/theme";
 
-var CATEGORIES = ["Painting", "Sculpture", "Photography", "Digital", "Drawing", "Print", "Mixed Media", "Installation", "Textile", "Ceramic"];
-var MEDIUMS = ["Oil", "Acrylic", "Watercolor", "Charcoal", "Ink", "Pastel", "Graphite", "Digital", "Photography", "Bronze", "Clay", "Wood", "Mixed Media", "Other"];
+var CATEGORIES = [
+  "Painting",
+  "Sculpture",
+  "Photography",
+  "Digital",
+  "Drawing",
+  "Print",
+  "Mixed Media",
+  "Installation",
+  "Textile",
+  "Ceramic",
+];
+var MEDIUMS = [
+  "Oil",
+  "Acrylic",
+  "Watercolor",
+  "Charcoal",
+  "Ink",
+  "Pastel",
+  "Graphite",
+  "Digital",
+  "Photography",
+  "Bronze",
+  "Clay",
+  "Wood",
+  "Mixed Media",
+  "Other",
+];
 
 export default function UploadScreen({ navigation }) {
   var { user } = useAuth();
@@ -24,7 +63,10 @@ export default function UploadScreen({ navigation }) {
   async function pickImages() {
     var perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow photo library access to upload artwork");
+      Alert.alert(
+        "Permission needed",
+        "Allow photo library access to upload artwork",
+      );
       return;
     }
     var result = await ImagePicker.launchImageLibraryAsync({
@@ -34,19 +76,27 @@ export default function UploadScreen({ navigation }) {
       quality: 0.8,
     });
     if (!result.canceled && result.assets) {
-      var uris = result.assets.map(function (a) { return a.uri; });
+      var uris = result.assets.map(function (a) {
+        return a.uri;
+      });
       setImages(images.concat(uris).slice(0, 8));
     }
   }
 
   function removeImage(idx) {
-    setImages(images.filter(function (_, i) { return i !== idx; }));
+    setImages(
+      images.filter(function (_, i) {
+        return i !== idx;
+      }),
+    );
   }
 
   async function onSubmit() {
     if (!title.trim()) return Alert.alert("Required", "Enter a title");
-    if (images.length === 0) return Alert.alert("Required", "Add at least one image");
-    if (forSale && (!price || isNaN(parseFloat(price)))) return Alert.alert("Required", "Enter a valid price");
+    if (images.length === 0)
+      return Alert.alert("Required", "Add at least one image");
+    if (forSale && (!price || isNaN(parseFloat(price))))
+      return Alert.alert("Required", "Enter a valid price");
 
     setUploading(true);
 
@@ -54,9 +104,16 @@ export default function UploadScreen({ navigation }) {
       // Step 1: Upload images to Cloudinary
       var uploadedUrls = [];
       for (var i = 0; i < images.length; i++) {
-        setProgress("Uploading image " + (i + 1) + " of " + images.length + "...");
+        setProgress(
+          "Uploading image " + (i + 1) + " of " + images.length + "...",
+        );
         var result = await upload.image(images[i], "artworks");
-        uploadedUrls.push({ url: result.url, publicId: result.publicId, width: result.width, height: result.height });
+        uploadedUrls.push({
+          url: result.url,
+          publicId: result.publicId,
+          width: result.width,
+          height: result.height,
+        });
       }
 
       // Step 2: Create artwork via POST /api/artworks
@@ -74,8 +131,22 @@ export default function UploadScreen({ navigation }) {
 
       setUploading(false);
       setProgress("");
-      setImages([]); setTitle(""); setDesc(""); setCategory(""); setMedium(""); setYear(""); setForSale(false); setPrice("");
-      Alert.alert("Success", "Artwork uploaded!", [{ text: "OK", onPress: function () { navigation.goBack(); } }]);
+      setImages([]);
+      setTitle("");
+      setDesc("");
+      setCategory("");
+      setMedium("");
+      setYear("");
+      setForSale(false);
+      setPrice("");
+      Alert.alert("Success", "Artwork uploaded!", [
+        {
+          text: "View",
+          onPress: function () {
+            navigation.navigate("Home");
+          },
+        },
+      ]);
     } catch (e) {
       setUploading(false);
       setProgress("");
@@ -84,31 +155,70 @@ export default function UploadScreen({ navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: c.bg }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <View style={s.header}>
-        <TouchableOpacity onPress={function () { navigation.goBack(); }}>
+        <TouchableOpacity
+          onPress={function () {
+            navigation.goBack();
+          }}
+        >
           <Text style={{ fontSize: fs.xl, color: c.textSecondary }}>✕</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>New Artwork</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Images */}
         <Text style={s.label}>Images</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.sm }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.sm }}
+        >
           <TouchableOpacity style={s.addImg} onPress={pickImages}>
             <Text style={{ fontSize: 28, color: c.teal }}>+</Text>
-            <Text style={{ fontSize: fs.xs, color: c.teal, marginTop: 2 }}>Add</Text>
+            <Text style={{ fontSize: fs.xs, color: c.teal, marginTop: 2 }}>
+              Add
+            </Text>
           </TouchableOpacity>
           {images.map(function (uri, i) {
             return (
               <View key={i} style={s.thumb}>
                 <Image source={{ uri: uri }} style={s.thumbImg} />
-                <TouchableOpacity style={s.thumbRemove} onPress={function () { removeImage(i); }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: c.error, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: -1 }}>✕</Text>
+                <TouchableOpacity
+                  style={s.thumbRemove}
+                  onPress={function () {
+                    removeImage(i);
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: c.error,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "700",
+                        marginTop: -1,
+                      }}
+                    >
+                      ✕
+                    </Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -118,24 +228,56 @@ export default function UploadScreen({ navigation }) {
 
         {/* Title */}
         <Text style={s.label}>Title</Text>
-        <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder="Artwork title" placeholderTextColor={c.textMuted} />
+        <TextInput
+          style={s.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Artwork title"
+          placeholderTextColor={c.textMuted}
+        />
 
         {/* Description */}
         <Text style={s.label}>Description</Text>
-        <TextInput style={[s.input, { minHeight: 80, textAlignVertical: "top" }]} value={desc} onChangeText={setDesc} placeholder="Tell us about this piece..." placeholderTextColor={c.textMuted} multiline />
+        <TextInput
+          style={[s.input, { minHeight: 80, textAlignVertical: "top" }]}
+          value={desc}
+          onChangeText={setDesc}
+          placeholder="Tell us about this piece..."
+          placeholderTextColor={c.textMuted}
+          multiline
+        />
 
         {/* Year */}
         <Text style={s.label}>Year</Text>
-        <TextInput style={s.input} value={year} onChangeText={setYear} placeholder="2025" placeholderTextColor={c.textMuted} keyboardType="numeric" />
+        <TextInput
+          style={s.input}
+          value={year}
+          onChangeText={setYear}
+          placeholder="2025"
+          placeholderTextColor={c.textMuted}
+          keyboardType="numeric"
+        />
 
         {/* Category */}
         <Text style={s.label}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}
+        >
           {CATEGORIES.map(function (cat) {
             var active = category === cat;
             return (
-              <TouchableOpacity key={cat} style={[s.chip, active && s.chipActive]} onPress={function () { setCategory(active ? "" : cat); }}>
-                <Text style={[s.chipText, active && s.chipTextActive]}>{cat}</Text>
+              <TouchableOpacity
+                key={cat}
+                style={[s.chip, active && s.chipActive]}
+                onPress={function () {
+                  setCategory(active ? "" : cat);
+                }}
+              >
+                <Text style={[s.chipText, active && s.chipTextActive]}>
+                  {cat}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -143,12 +285,24 @@ export default function UploadScreen({ navigation }) {
 
         {/* Medium */}
         <Text style={s.label}>Medium</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}
+        >
           {MEDIUMS.map(function (m) {
             var active = medium === m;
             return (
-              <TouchableOpacity key={m} style={[s.chip, active && s.chipActive]} onPress={function () { setMedium(active ? "" : m); }}>
-                <Text style={[s.chipText, active && s.chipTextActive]}>{m}</Text>
+              <TouchableOpacity
+                key={m}
+                style={[s.chip, active && s.chipActive]}
+                onPress={function () {
+                  setMedium(active ? "" : m);
+                }}
+              >
+                <Text style={[s.chipText, active && s.chipTextActive]}>
+                  {m}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -157,8 +311,14 @@ export default function UploadScreen({ navigation }) {
         {/* For Sale */}
         <View style={s.saleRow}>
           <View>
-            <Text style={{ fontSize: fs.md, color: c.text, fontWeight: fw.medium }}>List for sale</Text>
-            <Text style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 2 }}>Set a price for collectors</Text>
+            <Text
+              style={{ fontSize: fs.md, color: c.text, fontWeight: fw.medium }}
+            >
+              List for sale
+            </Text>
+            <Text style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 2 }}>
+              Set a price for collectors
+            </Text>
           </View>
           <Switch
             value={forSale}
@@ -171,15 +331,28 @@ export default function UploadScreen({ navigation }) {
         {forSale ? (
           <View>
             <Text style={s.label}>Price (USD)</Text>
-            <TextInput style={s.input} value={price} onChangeText={setPrice} placeholder="0.00" placeholderTextColor={c.textMuted} keyboardType="decimal-pad" />
+            <TextInput
+              style={s.input}
+              value={price}
+              onChangeText={setPrice}
+              placeholder="0.00"
+              placeholderTextColor={c.textMuted}
+              keyboardType="decimal-pad"
+            />
           </View>
         ) : null}
 
         {/* Submit */}
         <View style={{ height: sp.lg }} />
-        <TouchableOpacity style={[s.btn, uploading && { opacity: 0.6 }]} onPress={onSubmit} disabled={uploading}>
+        <TouchableOpacity
+          style={[s.btn, uploading && { opacity: 0.6 }]}
+          onPress={onSubmit}
+          disabled={uploading}
+        >
           {uploading ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: sp.sm }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: sp.sm }}
+            >
               <ActivityIndicator color={c.textInverse} size="small" />
               <Text style={s.btnText}>{progress || "Uploading..."}</Text>
             </View>
@@ -195,20 +368,84 @@ export default function UploadScreen({ navigation }) {
 }
 
 var s = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: sp.lg, paddingVertical: sp.md, borderBottomWidth: 1, borderBottomColor: c.border },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: sp.lg,
+    paddingVertical: sp.md,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border,
+  },
   headerTitle: { fontSize: fs.lg, fontWeight: fw.bold, color: c.text },
   scroll: { paddingHorizontal: sp.lg, paddingBottom: 40 },
-  label: { fontSize: fs.sm, color: c.textSecondary, fontWeight: fw.medium, marginBottom: sp.sm, marginTop: sp.md },
-  input: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: rad.md, paddingHorizontal: sp.md, paddingVertical: 14, fontSize: fs.md, color: c.text },
-  addImg: { width: 100, height: 100, borderRadius: rad.md, borderWidth: 1.5, borderColor: c.border, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
+  label: {
+    fontSize: fs.sm,
+    color: c.textSecondary,
+    fontWeight: fw.medium,
+    marginBottom: sp.sm,
+    marginTop: sp.md,
+  },
+  input: {
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: rad.md,
+    paddingHorizontal: sp.md,
+    paddingVertical: 14,
+    fontSize: fs.md,
+    color: c.text,
+  },
+  addImg: {
+    width: 100,
+    height: 100,
+    borderRadius: rad.md,
+    borderWidth: 1.5,
+    borderColor: c.border,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   thumb: { width: 100, height: 100, borderRadius: rad.md, overflow: "hidden" },
   thumbImg: { width: "100%", height: "100%", borderRadius: rad.md },
   thumbRemove: { position: "absolute", top: 4, right: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: c.surface, borderRadius: rad.full, borderWidth: 1, borderColor: c.border },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: c.surface,
+    borderRadius: rad.full,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
   chipActive: { backgroundColor: c.teal, borderColor: c.teal },
   chipText: { fontSize: fs.sm, color: c.textSecondary, fontWeight: fw.medium },
   chipTextActive: { color: c.textInverse },
-  saleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: c.surface, borderRadius: rad.md, padding: sp.md, marginTop: sp.md, borderWidth: 1, borderColor: c.border },
-  btn: { backgroundColor: c.teal, paddingVertical: 20, alignItems: "center", borderRadius: rad.md, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  btnText: { color: c.textInverse, fontSize: fs.lg, fontWeight: fw.bold, letterSpacing: 0.5 },
+  saleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: c.surface,
+    borderRadius: rad.md,
+    padding: sp.md,
+    marginTop: sp.md,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  btn: {
+    backgroundColor: c.teal,
+    paddingVertical: 20,
+    alignItems: "center",
+    borderRadius: rad.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  btnText: {
+    color: c.textInverse,
+    fontSize: fs.lg,
+    fontWeight: fw.bold,
+    letterSpacing: 0.5,
+  },
 });

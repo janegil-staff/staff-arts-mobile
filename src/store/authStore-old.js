@@ -60,24 +60,17 @@ export function AuthProvider({ children }) {
         dispatch({ type: "SIGNED_OUT" });
       },
       check: async function () {
+        dispatch({ type: "LOADING" });
         try {
           if (await auth.check()) {
             var u = await auth.me();
             dispatch({ type: "SIGNED_IN", user: u });
+          } else {
+            dispatch({ type: "SIGNED_OUT" });
           }
         } catch (e) {
-          console.log("Auth check failed:", e.message);
-        }
-      },
-      updateUser: function (userData) {
-        dispatch({ type: "SIGNED_IN", user: userData });
-      },
-      refreshUser: async function () {
-        try {
-          var u = await auth.me();
-          dispatch({ type: "SIGNED_IN", user: u });
-        } catch (e) {
-          console.log("Refresh user failed:", e.message);
+          await auth.logout();
+          dispatch({ type: "SIGNED_OUT" });
         }
       },
     };
@@ -91,8 +84,6 @@ export function AuthProvider({ children }) {
     register: actions.register,
     logout: actions.logout,
     check: actions.check,
-    updateUser: actions.updateUser,
-    refreshUser: actions.refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
