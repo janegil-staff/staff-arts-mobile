@@ -134,6 +134,13 @@ export var artworks = {
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
+
+  getMine: async function (params) {
+    var res = await fetch(BASE + "/api/mobile/me/artworks" + toQuery(params), { headers: await authHeaders() });
+    var json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Failed");
+    return json.data || json;
+  },
 };
 
 // ── Upload ──

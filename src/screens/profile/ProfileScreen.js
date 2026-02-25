@@ -70,22 +70,26 @@ export default function ProfileScreen({ navigation }) {
         <Text style={{ fontSize: fs.md, color: c.teal, fontWeight: fw.medium }}>Edit Profile</Text>
       </TouchableOpacity>
 
+      {/* Menu items */}
       <View style={{ marginHorizontal: sp.lg, marginTop: sp.lg, backgroundColor: c.surface, borderRadius: rad.lg, overflow: "hidden", borderWidth: 1, borderColor: c.borderLight }}>
         {[
-          ["My Artworks", "Explore"],
-          ["Orders", "Orders"],
-          ["Commissions", "Commissions"],
-          ["Messages", "Messages"],
-          ["Settings", "Settings"],
+          ["🎨", "My Artworks", "MyArtworks"],
+          ["📦", "Orders", "Orders"],
+          ["✏️", "Commissions", "Commissions"],
+          ["💬", "Messages", "Messages"],
+          ["⚙️", "Settings", "Settings"],
         ].map(function (item, i) {
           return (
             <TouchableOpacity
-              key={item[0]}
+              key={item[1]}
               style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: sp.lg, borderBottomWidth: i < 4 ? 1 : 0, borderBottomColor: c.borderLight }}
-              onPress={function () { navigation.navigate(item[1]); }}
+              onPress={function () { navigation.navigate(item[2]); }}
             >
-              <Text style={{ fontSize: fs.md, color: c.text }}>{item[0]}</Text>
-              <Text style={{ color: c.textMuted }}>→</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <Text style={{ fontSize: 18 }}>{item[0]}</Text>
+                <Text style={{ fontSize: fs.md, color: c.text }}>{item[1]}</Text>
+              </View>
+              <Text style={{ color: c.textMuted, fontSize: 16 }}>›</Text>
             </TouchableOpacity>
           );
         })}

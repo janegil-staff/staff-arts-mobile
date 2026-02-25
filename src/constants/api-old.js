@@ -1,28 +1,23 @@
-export var API_URL = "http://localhost:3000";
+export var BASE = "http://localhost:3000";
 
-export var API = {
+export var EP = {
   login: "/api/mobile/auth/login",
   register: "/api/mobile/auth/register",
-  profile: "/api/mobile/auth/profile",
   refresh: "/api/mobile/auth/refresh",
+  profile: "/api/mobile/auth/profile",
   me: "/api/mobile/me",
   artworks: "/api/artworks",
-  myArtworks: "/api/mobile/me/artworks",
-  artworkLike: (id) => `/api/artworks/${id}/like`,
   users: "/api/users",
-  userProfile: (u) => `/api/users/${u}`,
-  userFollow: (id) => `/api/mobile/users/${id}/follow`,
   posts: "/api/mobile/posts",
-  postLike: (id) => `/api/mobile/posts/${id}/like`,
-  postComment: (id) => `/api/mobile/posts/${id}/comment`,
-  exhibitions: "/api/exhibitions",
   events: "/api/events",
+  exhibitions: "/api/exhibitions",
   orders: "/api/orders",
   commissions: "/api/commissions",
   conversations: "/api/messages/conversations",
   messages: "/api/messages",
   music: "/api/music",
   notifications: "/api/notifications",
-  upload: "/api/upload",
   search: "/api/search",
+  upload: "/api/upload",
+  google: "/api/mobile/auth/google",
 };

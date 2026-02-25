@@ -25,7 +25,6 @@ import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import SearchScreen from "../screens/search/SearchScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import EditProfileScreen from "../screens/profile/EditProfileScreen";
-import MyArtworksScreen from "../screens/profile/MyArtworksScreen";
 import SettingsScreen from "../screens/settings/SettingsScreen";
 import LoginScreen from "../screens/auth/LoginScreen";
 import RegisterScreen from "../screens/auth/RegisterScreen";
@@ -107,9 +106,7 @@ function ProfileNav() {
       {ok ? (
         <>
           <PS.Screen name="ProfileScreen" component={ProfileScreen} options={{ title: "Profile" }} />
-          <PS.Screen name="ArtworkDetail" component={ArtworkDetailScreen} options={{ title: "" }} />
           <PS.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit Profile" }} />
-          <PS.Screen name="MyArtworks" component={MyArtworksScreen} options={{ title: "My Artworks" }} />
           <PS.Screen name="Orders" component={OrdersScreen} options={{ title: "Orders" }} />
           <PS.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: "Order" }} />
           <PS.Screen name="Commissions" component={CommissionsScreen} options={{ title: "Commissions" }} />
