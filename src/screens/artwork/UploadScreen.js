@@ -46,6 +46,17 @@ var MEDIUMS = [
   "Mixed Media",
   "Other",
 ];
+var CURRENCIES = [
+  { code: "USD", symbol: "$", label: "USD ($)" },
+  { code: "EUR", symbol: "€", label: "EUR (€)" },
+  { code: "GBP", symbol: "£", label: "GBP (£)" },
+  { code: "NOK", symbol: "kr", label: "NOK (kr)" },
+  { code: "SEK", symbol: "kr", label: "SEK (kr)" },
+  { code: "CAD", symbol: "$", label: "CAD ($)" },
+  { code: "AUD", symbol: "$", label: "AUD ($)" },
+  { code: "JPY", symbol: "¥", label: "JPY (¥)" },
+  { code: "CHF", symbol: "Fr", label: "CHF (Fr)" },
+];
 
 export default function UploadScreen({ navigation }) {
   var { user } = useAuth();
@@ -57,8 +68,13 @@ export default function UploadScreen({ navigation }) {
   var [year, setYear] = useState("");
   var [forSale, setForSale] = useState(false);
   var [price, setPrice] = useState("");
+  var [currency, setCurrency] = useState("USD");
   var [uploading, setUploading] = useState(false);
   var [progress, setProgress] = useState("");
+
+  var activeCurrency = CURRENCIES.find(function (cur) {
+    return cur.code === currency;
+  });
 
   async function pickImages() {
     var perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -101,7 +117,6 @@ export default function UploadScreen({ navigation }) {
     setUploading(true);
 
     try {
-      // Step 1: Upload images to Cloudinary
       var uploadedUrls = [];
       for (var i = 0; i < images.length; i++) {
         setProgress(
@@ -116,7 +131,6 @@ export default function UploadScreen({ navigation }) {
         });
       }
 
-      // Step 2: Create artwork via POST /api/artworks
       setProgress("Saving artwork...");
       await artworks.create({
         title: title.trim(),
@@ -126,7 +140,8 @@ export default function UploadScreen({ navigation }) {
         medium: medium,
         year: year ? parseInt(year) : undefined,
         forSale: forSale,
-        price: forSale ? Math.round(parseFloat(price) * 100) : 0,
+        price: forSale ? parseFloat(price) : 0,
+        currency: currency,
       });
 
       setUploading(false);
@@ -139,6 +154,7 @@ export default function UploadScreen({ navigation }) {
       setYear("");
       setForSale(false);
       setPrice("");
+      setCurrency("USD");
       Alert.alert("Success", "Artwork uploaded!", [
         {
           text: "View",
@@ -330,15 +346,49 @@ export default function UploadScreen({ navigation }) {
 
         {forSale ? (
           <View>
-            <Text style={s.label}>Price (USD)</Text>
-            <TextInput
-              style={s.input}
-              value={price}
-              onChangeText={setPrice}
-              placeholder="0.00"
-              placeholderTextColor={c.textMuted}
-              keyboardType="decimal-pad"
-            />
+            {/* Currency */}
+            <Text style={s.label}>Currency</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}
+            >
+              {CURRENCIES.map(function (cur) {
+                var active = currency === cur.code;
+                return (
+                  <TouchableOpacity
+                    key={cur.code}
+                    style={[s.chip, active && s.chipActive]}
+                    onPress={function () {
+                      setCurrency(cur.code);
+                    }}
+                  >
+                    <Text style={[s.chipText, active && s.chipTextActive]}>
+                      {cur.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Price */}
+            <Text style={s.label}>
+              Price ({activeCurrency ? activeCurrency.symbol : currency})
+            </Text>
+            <View style={s.priceRow}>
+              <Text style={s.priceSymbol}>
+                {activeCurrency ? activeCurrency.symbol : "$"}
+              </Text>
+              <TextInput
+                style={s.priceInput}
+                value={price}
+                onChangeText={setPrice}
+                placeholder="0.00"
+                placeholderTextColor={c.textMuted}
+                keyboardType="decimal-pad"
+              />
+              <Text style={s.priceCurrency}>{currency}</Text>
+            </View>
           </View>
         ) : null}
 
@@ -351,7 +401,11 @@ export default function UploadScreen({ navigation }) {
         >
           {uploading ? (
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: sp.sm }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: sp.sm,
+              }}
             >
               <ActivityIndicator color={c.textInverse} size="small" />
               <Text style={s.btnText}>{progress || "Uploading..."}</Text>
@@ -396,6 +450,33 @@ var s = StyleSheet.create({
     fontSize: fs.md,
     color: c.text,
   },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: rad.md,
+    paddingHorizontal: sp.md,
+  },
+  priceSymbol: {
+    fontSize: fs.lg,
+    color: c.textMuted,
+    fontWeight: fw.semi,
+    marginRight: 4,
+  },
+  priceInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: fs.md,
+    color: c.text,
+  },
+  priceCurrency: {
+    fontSize: fs.sm,
+    color: c.textMuted,
+    fontWeight: fw.medium,
+    marginLeft: sp.sm,
+  },
   addImg: {
     width: 100,
     height: 100,
@@ -406,7 +487,12 @@ var s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  thumb: { width: 100, height: 100, borderRadius: rad.md, overflow: "hidden" },
+  thumb: {
+    width: 100,
+    height: 100,
+    borderRadius: rad.md,
+    overflow: "hidden",
+  },
   thumbImg: { width: "100%", height: "100%", borderRadius: rad.md },
   thumbRemove: { position: "absolute", top: 4, right: 4 },
   chip: {
@@ -418,7 +504,11 @@ var s = StyleSheet.create({
     borderColor: c.border,
   },
   chipActive: { backgroundColor: c.teal, borderColor: c.teal },
-  chipText: { fontSize: fs.sm, color: c.textSecondary, fontWeight: fw.medium },
+  chipText: {
+    fontSize: fs.sm,
+    color: c.textSecondary,
+    fontWeight: fw.medium,
+  },
   chipTextActive: { color: c.textInverse },
   saleRow: {
     flexDirection: "row",
