@@ -6,4 +6,4 @@ export var USER_ROLES = [
   { value: "gallery", label: "Gallery", desc: "Represent artists" },
 ];
 
-export var API_BASE = "http://192.168.1.XXX:3000";
+export var API_BASE = "http://localhost:3000";

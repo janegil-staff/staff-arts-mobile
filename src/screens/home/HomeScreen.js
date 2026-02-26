@@ -26,21 +26,29 @@ export default function HomeScreen({ navigation }) {
   var [refreshing, setRefreshing] = useState(false);
 
   var load = useCallback(async function () {
+    // Independent try/catch — one failure won't block the others
     try {
-      var results = await Promise.all([
-        artworks.list({ featured: true, limit: 10, status: "all" }),
-        artworks.list({ sort: "newest", limit: 10, status: "all" }),
-        evSvc.list({}),
-      ]);
-      setFeat(results[0].artworks || []);
-      setRec(results[1].artworks || []);
-      setEvs(results[2].events || []);
+      var f = await artworks.list({ featured: true, limit: 10, status: "all" });
+      setFeat(f.artworks || f.data?.artworks || []);
     } catch (e) {
-      console.log("Home load error:", e);
+      console.log("Home featured error:", e.message);
+    }
+
+    try {
+      var r = await artworks.list({ sort: "newest", limit: 10, status: "all" });
+      setRec(r.artworks || r.data?.artworks || []);
+    } catch (e) {
+      console.log("Home recent error:", e.message);
+    }
+
+    try {
+      var ev = await evSvc.list({});
+      setEvs(ev.events || ev.data?.events || []);
+    } catch (e) {
+      console.log("Home events error:", e.message);
     }
   }, []);
 
-  // Reload every time this screen gains focus
   useFocusEffect(
     useCallback(
       function () {
@@ -59,7 +67,7 @@ export default function HomeScreen({ navigation }) {
   var hr = new Date().getHours();
   var greeting =
     hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
-console.log(user);
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.bg }}
@@ -88,82 +96,91 @@ console.log(user);
       </View>
 
       {/* Curated */}
-      <View style={s.sec}>
-        <View style={s.sh}>
-          <Text style={s.sl}>CURATED</Text>
-          <TouchableOpacity
-            onPress={function () {
-              navigation.navigate("Explore");
-            }}
+      {feat.length > 0 && (
+        <View style={s.sec}>
+          <View style={s.sh}>
+            <Text style={s.sl}>CURATED</Text>
+            <TouchableOpacity
+              onPress={function () {
+                navigation.navigate("Explore");
+              }}
+            >
+              <Text style={{ fontSize: fs.sm, color: c.teal }}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={FW + sp.md}
+            decelerationRate="fast"
+            contentContainerStyle={{ paddingLeft: sp.lg, paddingRight: sp.md }}
           >
-            <Text style={{ fontSize: fs.sm, color: c.teal }}>See all</Text>
-          </TouchableOpacity>
+            {feat.map(function (item) {
+              return (
+                <TouchableOpacity
+                  key={item._id}
+                  style={s.fc}
+                  onPress={function () {
+                    navigation.navigate("ArtworkDetail", { id: item._id });
+                  }}
+                >
+                  <Image source={{ uri: item.images?.[0]?.url }} style={s.fi} />
+                  <View style={{ padding: sp.md, paddingBottom: sp.xs }}>
+                    <Text
+                      style={{
+                        fontSize: fs.md,
+                        fontWeight: fw.semi,
+                        color: c.text,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: fs.sm,
+                        color: c.textSecondary,
+                        marginTop: 2,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.artistId && item.artistId.displayName
+                        ? item.artistId.displayName
+                        : ""}
+                    </Text>
+                  </View>
+                  {item.pricing && item.pricing.price > 0 && (
+                    <Text
+                      style={{
+                        paddingHorizontal: sp.md,
+                        paddingBottom: sp.md,
+                        fontSize: fs.sm,
+                        fontWeight: fw.bold,
+                        color: c.teal,
+                      }}
+                    >
+                      ${item.pricing.price.toLocaleString()}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={FW + sp.md}
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingLeft: sp.lg, paddingRight: sp.md }}
-        >
-          {feat.map(function (item) {
-            return (
-              <TouchableOpacity
-                key={item._id}
-                style={s.fc}
-                onPress={function () {
-                  navigation.navigate("ArtworkDetail", { id: item._id });
-                }}
-              >
-                <Image source={{  uri: item.images[0]?.url }} style={s.fi} />
-                <View style={{ padding: sp.md, paddingBottom: sp.xs }}>
-                  <Text
-                    style={{
-                      fontSize: fs.md,
-                      fontWeight: fw.semi,
-                      color: c.text,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: fs.sm,
-                      color: c.textSecondary,
-                      marginTop: 2,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {item.artistId && item.artistId.displayName
-                      ? item.artistId.displayName
-                      : ""}
-                  </Text>
-                </View>
-                {item.pricing && item.pricing.price > 0 && (
-                  <Text
-                    style={{
-                      paddingHorizontal: sp.md,
-                      paddingBottom: sp.md,
-                      fontSize: fs.sm,
-                      fontWeight: fw.bold,
-                      color: c.teal,
-                    }}
-                  >
-                    ${item.pricing.price.toLocaleString()}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+      )}
 
       {/* Upcoming Events */}
       {evs.length > 0 && (
         <View style={s.sec}>
           <View style={s.sh}>
             <Text style={s.sl}>UPCOMING</Text>
+            <TouchableOpacity
+              onPress={function () {
+                navigation.navigate("Events");
+              }}
+            >
+              <Text style={{ fontSize: fs.sm, color: c.teal }}>See all</Text>
+            </TouchableOpacity>
           </View>
           {evs.slice(0, 3).map(function (ev) {
             return (
@@ -171,7 +188,7 @@ console.log(user);
                 key={ev._id}
                 style={s.ec}
                 onPress={function () {
-                  navigation.navigate("ArtworkDetail", { id: ev._id });
+                  navigation.navigate("EventDetail", { id: ev._id });
                 }}
               >
                 <View
@@ -211,10 +228,10 @@ console.log(user);
                       marginTop: 4,
                     }}
                   >
-                    {ev.startDate
-                      ? format(new Date(ev.startDate), "MMM d")
+                    {ev.date || ev.startDate
+                      ? format(new Date(ev.date || ev.startDate), "MMM d")
                       : ""}
-                    {ev.venue && ev.venue.city ? " · " + ev.venue.city : ""}
+                    {ev.location ? " · " + ev.location : ""}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -224,52 +241,54 @@ console.log(user);
       )}
 
       {/* Just Added */}
-      <View style={s.sec}>
-        <View style={s.sh}>
-          <Text style={s.sl}>JUST ADDED</Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            paddingHorizontal: sp.lg,
-            gap: sp.sm,
-          }}
-        >
-          {rec.slice(0, 6).map(function (item) {
-            return (
-              <TouchableOpacity
-                key={item._id}
-                style={{ width: (W - sp.lg * 2 - sp.sm * 2) / 3 }}
-                onPress={function () {
-                  navigation.navigate("ArtworkDetail", { id: item._id });
-                }}
-              >
-                <Image
-                  source={{ uri: item.images[0]?.url }}
-                  style={{
-                    width: "100%",
-                    aspectRatio: 0.8,
-                    borderRadius: rad.sm,
-                    backgroundColor: c.surfaceDim,
+      {rec.length > 0 && (
+        <View style={s.sec}>
+          <View style={s.sh}>
+            <Text style={s.sl}>JUST ADDED</Text>
+          </View>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              paddingHorizontal: sp.lg,
+              gap: sp.sm,
+            }}
+          >
+            {rec.slice(0, 6).map(function (item) {
+              return (
+                <TouchableOpacity
+                  key={item._id}
+                  style={{ width: (W - sp.lg * 2 - sp.sm * 2) / 3 }}
+                  onPress={function () {
+                    navigation.navigate("ArtworkDetail", { id: item._id });
                   }}
-                />
-                <Text
-                  style={{
-                    fontSize: fs.xs,
-                    fontWeight: fw.medium,
-                    color: c.text,
-                    marginTop: sp.xs,
-                  }}
-                  numberOfLines={1}
                 >
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+                  <Image
+                    source={{ uri: item.images?.[0]?.url }}
+                    style={{
+                      width: "100%",
+                      aspectRatio: 0.8,
+                      borderRadius: rad.sm,
+                      backgroundColor: c.surfaceDim,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: fs.xs,
+                      fontWeight: fw.medium,
+                      color: c.text,
+                      marginTop: sp.xs,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      )}
     </ScrollView>
   );
 }

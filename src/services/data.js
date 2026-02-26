@@ -1,7 +1,20 @@
 import * as SecureStore from "expo-secure-store";
 import { API_URL, API } from "../constants/api";
 
-// ── Token helpers ──
+// ══════════════════════════════════════════════════════════════
+// Global auth failure callback
+// Set by AuthProvider so data.js can trigger logout
+// ══════════════════════════════════════════════════════════════
+
+var _onAuthFailed = null;
+
+export function setOnAuthFailed(cb) {
+  _onAuthFailed = cb;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Token helpers
+// ══════════════════════════════════════════════════════════════
 
 async function getToken() {
   try {
@@ -32,6 +45,41 @@ async function authHeaders() {
   return h;
 }
 
+async function doRefresh() {
+  try {
+    var rt = await SecureStore.getItemAsync("rtoken");
+    if (!rt) return false;
+    var res = await fetch(API_URL + API.refresh, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: rt }),
+    });
+    if (!res.ok) return false;
+    var json = await res.json();
+    await saveTokens(json.data.token, json.data.refreshToken);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function fetchWithRetry(url, opts) {
+  var res = await fetch(url, opts);
+  if (res.status === 401) {
+    var ok = await doRefresh();
+    if (ok) {
+      var newToken = await getToken();
+      if (opts.headers && newToken) {
+        opts.headers.Authorization = "Bearer " + newToken;
+      }
+      return await fetch(url, opts);
+    }
+    await clearTokens();
+    if (_onAuthFailed) _onAuthFailed();
+  }
+  return res;
+}
+
 function toQuery(params) {
   if (!params) return "";
   var parts = [];
@@ -46,7 +94,16 @@ function toQuery(params) {
   return parts.length > 0 ? "?" + parts.join("&") : "";
 }
 
-// ── Auth ──
+// Helper for standard JSON responses
+async function parseResponse(res) {
+  var json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Request failed");
+  return json.data || json;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Auth
+// ══════════════════════════════════════════════════════════════
 
 export var auth = {
   login: async function (email, password) {
@@ -74,10 +131,8 @@ export var auth = {
   },
 
   me: async function () {
-    var res = await fetch(API_URL + API.me, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    var res = await fetchWithRetry(API_URL + API.me, { headers: await authHeaders() });
+    return parseResponse(res);
   },
 
   check: async function () {
@@ -89,96 +144,91 @@ export var auth = {
   },
 
   updateProfile: async function (data) {
-    var res = await fetch(API_URL + API.profile, {
+    var res = await fetchWithRetry(API_URL + API.profile, {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Artworks ──
+// ══════════════════════════════════════════════════════════════
+// Artworks
+// ══════════════════════════════════════════════════════════════
 
 export var artworks = {
   list: async function (params) {
-    var res = await fetch(API_URL + API.artworks + toQuery(params), {
+    var res = await fetchWithRetry(API_URL + API.artworks + toQuery(params), {
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   get: async function (id) {
-    var res = await fetch(API_URL + API.artworks + "/" + id, {
+    var res = await fetchWithRetry(API_URL + API.artworks + "/" + id, {
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-
-  like: async function (id) {
-    var res = await fetch(API_URL + API.artworkLike(id), {
-      method: "POST",
-      headers: await authHeaders(),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   create: async function (data) {
-    var res = await fetch(API_URL + API.artworks, {
+    var res = await fetchWithRetry(API_URL + API.artworks, {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify(data),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-
-  getMine: async function (params) {
-    var res = await fetch(API_URL + API.myArtworks + toQuery(params), {
-      headers: await authHeaders(),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   update: async function (id, data) {
-    var res = await fetch(API_URL + API.artworks + "/" + id, {
+    var res = await fetchWithRetry(API_URL + API.artworks + "/" + id, {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   remove: async function (id) {
-    var res = await fetch(API_URL + API.artworks + "/" + id, {
+    var res = await fetchWithRetry(API_URL + API.artworks + "/" + id, {
       method: "DELETE",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    if (!res.ok) {
+      var text = await res.text();
+      var err;
+      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      throw new Error(err.error || "Failed to delete");
+    }
+    var text = await res.text();
+    if (!text) return { success: true };
+    return JSON.parse(text).data || { success: true };
+  },
+
+  like: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.artworkLike(id), {
+      method: "POST",
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  getMine: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.myArtworks + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 };
 
-// ── Upload ──
+// ══════════════════════════════════════════════════════════════
+// Upload
+// ══════════════════════════════════════════════════════════════
 
 export var upload = {
   image: async function (uri, folder) {
-    // Step 1: Get Cloudinary signature
-    var sigRes = await fetch(API_URL + API.upload + "/signature", {
+    var sigRes = await fetchWithRetry(API_URL + API.upload + "/signature", {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ folder: folder || "staff-arts" }),
@@ -187,7 +237,6 @@ export var upload = {
     if (!sigRes.ok) throw new Error(sigJson.error || "Signature failed");
     var sig = sigJson.data;
 
-    // Step 2: Upload to Cloudinary
     var filename = uri.split("/").pop();
     var ext = filename.split(".").pop().toLowerCase();
     var mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
@@ -214,246 +263,316 @@ export var upload = {
   },
 };
 
-// ── Users ──
+// ══════════════════════════════════════════════════════════════
+// Users
+// ══════════════════════════════════════════════════════════════
 
 export var users = {
   get: async function (username) {
-    var res = await fetch(API_URL + API.userProfile(username), {
+    var res = await fetchWithRetry(API_URL + API.userProfile(username), {
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   follow: async function (id) {
-    var res = await fetch(API_URL + API.userFollow(id), {
+    var res = await fetchWithRetry(API_URL + API.userFollow(id), {
       method: "POST",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Posts / Feed ──
+// ══════════════════════════════════════════════════════════════
+// Posts / Feed
+// ══════════════════════════════════════════════════════════════
 
 export var posts = {
   list: async function () {
-    var res = await fetch(API_URL + API.posts, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    var res = await fetchWithRetry(API_URL + API.posts, { headers: await authHeaders() });
+    return parseResponse(res);
   },
 
   like: async function (id) {
-    var res = await fetch(API_URL + API.postLike(id), {
+    var res = await fetchWithRetry(API_URL + API.postLike(id), {
       method: "POST",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   comment: async function (id, text) {
-    var res = await fetch(API_URL + API.postComment(id), {
+    var res = await fetchWithRetry(API_URL + API.postComment(id), {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ text: text }),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Events ──
+// ══════════════════════════════════════════════════════════════
+// Events
+// ══════════════════════════════════════════════════════════════
 
 export var events = {
-  list: async function () {
-    var res = await fetch(API_URL + API.events, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+  list: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.events + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 
   get: async function (id) {
-    var res = await fetch(API_URL + API.events + "/" + id, {
+    var res = await fetchWithRetry(API_URL + API.events + "/" + id, {
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-};
-
-// ── Exhibitions ──
-
-export var exhibitions = {
-  list: async function () {
-    var res = await fetch(API_URL + API.exhibitions, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
-  get: async function (id) {
-    var res = await fetch(API_URL + API.exhibitions + "/" + id, {
+  create: async function (data) {
+    var res = await fetchWithRetry(API_URL + API.events, {
+      method: "POST",
       headers: await authHeaders(),
+      body: JSON.stringify(data),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-};
-
-// ── Orders ──
-
-export var orders = {
-  list: async function () {
-    var res = await fetch(API_URL + API.orders, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-
-  get: async function (id) {
-    var res = await fetch(API_URL + API.orders + "/" + id, {
-      headers: await authHeaders(),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-};
-
-// ── Commissions ──
-
-export var commissions = {
-  list: async function () {
-    var res = await fetch(API_URL + API.commissions, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
-  },
-
-  get: async function (id) {
-    var res = await fetch(API_URL + API.commissions + "/" + id, {
-      headers: await authHeaders(),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   update: async function (id, data) {
-    var res = await fetch(API_URL + API.commissions + "/" + id, {
+    var res = await fetchWithRetry(API_URL + API.events + "/" + id, {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
+  },
+
+  remove: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.events + "/" + id, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      var text = await res.text();
+      var err;
+      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      throw new Error(err.error || "Failed to delete");
+    }
+    return { success: true };
+  },
+
+  rsvp: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.events + "/" + id + "/rsvp", {
+      method: "POST",
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 };
 
-// ── Messages ──
+// ══════════════════════════════════════════════════════════════
+// Exhibitions
+// ══════════════════════════════════════════════════════════════
+
+export var exhibitions = {
+  list: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.exhibitions + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  get: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.exhibitions + "/" + id, {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  create: async function (data) {
+    var res = await fetchWithRetry(API_URL + API.exhibitions, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify(data),
+    });
+    return parseResponse(res);
+  },
+
+  update: async function (id, data) {
+    var res = await fetchWithRetry(API_URL + API.exhibitions + "/" + id, {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: JSON.stringify(data),
+    });
+    return parseResponse(res);
+  },
+
+  remove: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.exhibitions + "/" + id, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      var text = await res.text();
+      var err;
+      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      throw new Error(err.error || "Failed to delete");
+    }
+    return { success: true };
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// Orders
+// ══════════════════════════════════════════════════════════════
+
+export var orders = {
+  list: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.orders + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  get: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.orders + "/" + id, {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// Commissions
+// ══════════════════════════════════════════════════════════════
+
+export var commissions = {
+  list: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.commissions + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  get: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.commissions + "/" + id, {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  update: async function (id, data) {
+    var res = await fetchWithRetry(API_URL + API.commissions + "/" + id, {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: JSON.stringify(data),
+    });
+    return parseResponse(res);
+  },
+
+  create: async function (data) {
+    var res = await fetchWithRetry(API_URL + API.commissions, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify(data),
+    });
+    return parseResponse(res);
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// Messages
+// ══════════════════════════════════════════════════════════════
 
 export var msgs = {
   conversations: async function () {
-    var res = await fetch(API_URL + API.conversations, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    var res = await fetchWithRetry(API_URL + API.conversations, {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 
   list: async function (conversationId) {
-    var res = await fetch(API_URL + API.messages + "?conversationId=" + conversationId, {
-      headers: await authHeaders(),
-    });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    var res = await fetchWithRetry(
+      API_URL + API.messages + "?conversationId=" + conversationId,
+      { headers: await authHeaders() },
+    );
+    return parseResponse(res);
   },
 
   send: async function (conversationId, text) {
-    var res = await fetch(API_URL + API.messages, {
+    var res = await fetchWithRetry(API_URL + API.messages, {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ conversationId: conversationId, text: text }),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Music ──
+// ══════════════════════════════════════════════════════════════
+// Music
+// ══════════════════════════════════════════════════════════════
 
 export var music = {
-  list: async function () {
-    var res = await fetch(API_URL + API.music, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+  list: async function (params) {
+    var res = await fetchWithRetry(API_URL + API.music + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 
   play: async function (id) {
-    var res = await fetch(API_URL + API.music + "/" + id + "/play", {
+    var res = await fetchWithRetry(API_URL + API.music + "/" + id + "/play", {
       method: "POST",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Notifications ──
+// ══════════════════════════════════════════════════════════════
+// Notifications
+// ══════════════════════════════════════════════════════════════
 
 export var notifs = {
   list: async function () {
-    var res = await fetch(API_URL + API.notifications, { headers: await authHeaders() });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    var res = await fetchWithRetry(API_URL + API.notifications, {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
   },
 
   read: async function (id) {
-    var res = await fetch(API_URL + API.notifications + "?id=" + id, {
+    var res = await fetchWithRetry(API_URL + API.notifications + "?id=" + id, {
       method: "PUT",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 
   readAll: async function () {
-    var res = await fetch(API_URL + API.notifications + "?all=true", {
+    var res = await fetchWithRetry(API_URL + API.notifications + "?all=true", {
       method: "PUT",
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
 
-// ── Search ──
+// ══════════════════════════════════════════════════════════════
+// Search
+// ══════════════════════════════════════════════════════════════
 
 export var search = {
   query: async function (q, type) {
     var params = "?q=" + encodeURIComponent(q);
     if (type && type !== "all") params += "&type=" + type;
-    var res = await fetch(API_URL + API.search + params, {
+    var res = await fetchWithRetry(API_URL + API.search + params, {
       headers: await authHeaders(),
     });
-    var json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Failed");
-    return json.data || json;
+    return parseResponse(res);
   },
 };
