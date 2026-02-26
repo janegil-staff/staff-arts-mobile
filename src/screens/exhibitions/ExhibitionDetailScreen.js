@@ -6,8 +6,6 @@ import {
   Image,
   TouchableOpacity as T,
   ActivityIndicator,
-  FlatList,
-  Dimensions,
   StyleSheet,
   Share,
   Alert,
@@ -16,8 +14,6 @@ import { exhibitions as exSvc } from "../../services/data";
 import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { format } from "date-fns";
-
-var W = Dimensions.get("window").width;
 
 // ── Helpers ──
 
@@ -160,7 +156,6 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
       (async function () {
         try {
           var res = await exSvc.get(id);
-          // Unwrap { success, data } if needed
           setEx(res.data || res);
         } catch (e) {
           console.log("Exhibition load error:", e.message);
@@ -200,7 +195,14 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
   // ── Derived data ──
 
   var org = ex.organizer;
-  var isOwner = currentUser && org && org._id === currentUser._id;
+
+  var isOwner = false;
+  if (currentUser && org) {
+    var orgId = String(org._id || org);
+    var userId = String(currentUser._id || currentUser.id);
+    isOwner = orgId === userId;
+  }
+
   var hasArtists = ex.artists && ex.artists.length > 0;
   var hasArtworks = ex.artworks && ex.artworks.length > 0;
 
@@ -278,15 +280,9 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
         {/* ── Info Rows ── */}
         <View style={{ gap: sp.sm, marginTop: sp.md }}>
           {dateStr ? <Row label="Dates" value={dateStr} /> : null}
-
           {ex.location ? <Row label="Location" value={ex.location} /> : null}
-
-          {ex.isVirtual ? (
-            <Row label="Format" value="Virtual / Online" />
-          ) : null}
-
+          {ex.isVirtual ? <Row label="Format" value="Virtual / Online" /> : null}
           {ex.virtualUrl ? <Row label="Link" value={ex.virtualUrl} /> : null}
-
           {ex.isFree ? (
             <Row label="Admission" value="Free" />
           ) : ex.ticketPrice ? (
@@ -298,7 +294,7 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
         </View>
 
         {/* ── Organizer ── */}
-        {org ? (
+        {org && typeof org === "object" ? (
           <T
             style={s.organizerRow}
             onPress={function () {
@@ -356,9 +352,6 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
                 s.actionBtn,
                 { backgroundColor: c.teal, borderColor: c.teal },
               ]}
-              onPress={function () {
-                // Could open URL
-              }}
             >
               <Text style={[s.actionBtnText, { color: c.textInverse }]}>
                 Visit Online
@@ -475,12 +468,16 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
 
       {/* ── Owner Actions ── */}
       {isOwner ? (
-        <View style={[s.card, { marginBottom: sp.lg, gap: sp.sm }]}>
+        <View style={{ marginHorizontal: sp.md, marginTop: sp.md, marginBottom: sp.lg }}>
           <T
-            style={[
-              s.ownerBtn,
-              { backgroundColor: "#2a1515", borderColor: "#5c2020" },
-            ]}
+            style={{
+              backgroundColor: "#2a1515",
+              borderColor: "#5c2020",
+              borderWidth: 1,
+              borderRadius: rad.md,
+              paddingVertical: 16,
+              alignItems: "center",
+            }}
             onPress={function () {
               Alert.alert(
                 "Delete Exhibition",
@@ -540,7 +537,6 @@ var s = StyleSheet.create({
     fontWeight: fw.semi,
     marginBottom: sp.md,
   },
-  // Organizer
   organizerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -555,7 +551,6 @@ var s = StyleSheet.create({
     height: 44,
     borderRadius: 22,
   },
-  // Artists
   artistChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -573,7 +568,6 @@ var s = StyleSheet.create({
     height: 32,
     borderRadius: 16,
   },
-  // Artworks
   artworkThumb: {
     width: 120,
   },
@@ -583,7 +577,6 @@ var s = StyleSheet.create({
     borderRadius: rad.md,
     backgroundColor: c.surfaceDim,
   },
-  // Action buttons
   actionBtn: {
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -596,12 +589,5 @@ var s = StyleSheet.create({
     fontSize: fs.sm,
     fontWeight: fw.semi,
     color: c.text,
-  },
-  // Owner
-  ownerBtn: {
-    paddingVertical: 16,
-    borderRadius: rad.md,
-    borderWidth: 1,
-    alignItems: "center",
   },
 });

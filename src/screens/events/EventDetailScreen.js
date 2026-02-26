@@ -110,7 +110,6 @@ export default function EventDetailScreen({ route, navigation }) {
       (async function () {
         try {
           var res = await evSvc.get(id);
-          // Unwrap { success, data } if needed
           setEv(res.data || res);
         } catch (e) {
           console.log("Event load error:", e.message);
@@ -150,7 +149,16 @@ export default function EventDetailScreen({ route, navigation }) {
   // ── Derived data ──
 
   var org = ev.organizer;
-  var isOwner = currentUser && org && org._id === currentUser._id;
+
+  var isOwner = false;
+  if (currentUser && org) {
+    var orgId = String(org._id || org);
+    var userId = String(currentUser._id || currentUser.id);
+    isOwner = orgId === userId;
+  }
+
+  var isMusic = ev.category === "music";
+  var typeLabel = isMusic ? "Music Show" : "Event";
 
   var dateStr = "";
   if (ev.date || ev.startDate) {
@@ -189,7 +197,9 @@ export default function EventDetailScreen({ route, navigation }) {
             justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 40, color: c.textMuted }}>📅</Text>
+          <Text style={{ fontSize: 40, color: c.textMuted }}>
+            {isMusic ? "🎵" : "📅"}
+          </Text>
         </View>
       )}
 
@@ -216,7 +226,7 @@ export default function EventDetailScreen({ route, navigation }) {
           {ev.status ? <StatusBadge status={ev.status} /> : null}
         </View>
 
-        {/* Event type badge */}
+        {/* Event/Music type badge */}
         {ev.type ? (
           <View style={s.typeBadge}>
             <Text style={s.typeBadgeText}>
@@ -228,33 +238,26 @@ export default function EventDetailScreen({ route, navigation }) {
         {/* ── Info Rows ── */}
         <View style={{ gap: sp.sm, marginTop: sp.md }}>
           {dateStr ? <Row label="Date" value={dateStr} /> : null}
-
           {timeStr ? <Row label="Time" value={timeStr} /> : null}
-
           {ev.location ? <Row label="Location" value={ev.location} /> : null}
-
-          {ev.isVirtual ? (
-            <Row label="Format" value="Virtual / Online" />
-          ) : null}
-
-          {ev.virtualUrl ? <Row label="Link" value={ev.virtualUrl} /> : null}
-
+          {ev.isOnline ? <Row label="Format" value="Virtual / Online" /> : null}
+          {ev.link ? <Row label="Link" value={ev.link} /> : null}
           {ev.isFree ? (
             <Row label="Admission" value="Free" />
-          ) : ev.ticketPrice ? (
+          ) : ev.price ? (
             <Row
               label="Ticket"
-              value={formatPrice(ev.ticketPrice, ev.currency || "NOK")}
+              value={formatPrice(ev.price, ev.currency || "NOK")}
             />
           ) : null}
-
           {ev.maxAttendees ? (
             <Row label="Capacity" value={String(ev.maxAttendees)} />
           ) : null}
+          {isMusic ? <Row label="Category" value="Music" /> : null}
         </View>
 
         {/* ── Organizer ── */}
-        {org ? (
+        {org && typeof org === "object" ? (
           <T
             style={s.organizerRow}
             onPress={function () {
@@ -306,7 +309,7 @@ export default function EventDetailScreen({ route, navigation }) {
           <T style={s.actionBtn} onPress={handleShare}>
             <Text style={s.actionBtnText}>Share</Text>
           </T>
-          {ev.virtualUrl && ev.isVirtual ? (
+          {ev.link && ev.isOnline ? (
             <T
               style={[
                 s.actionBtn,
@@ -353,16 +356,15 @@ export default function EventDetailScreen({ route, navigation }) {
           {ev.type ? (
             <Row label="Type" value={ev.type.replace("_", " ")} />
           ) : null}
-          {ev.isVirtual !== undefined ? (
-            <Row label="Virtual" value={ev.isVirtual ? "Yes" : "No"} />
+          {ev.isOnline !== undefined ? (
+            <Row label="Online" value={ev.isOnline ? "Yes" : "No"} />
           ) : null}
-          {ev.attendees?.length > 0 ? (
-            <Row label="Attendees" value={String(ev.attendees.length)} />
+          {ev.rsvps?.length > 0 ? (
+            <Row label="RSVPs" value={String(ev.rsvps.length)} />
           ) : null}
           {ev.maxAttendees ? (
             <Row label="Capacity" value={String(ev.maxAttendees)} />
           ) : null}
-          {ev.views ? <Row label="Views" value={String(ev.views)} /> : null}
           {ev.createdAt ? (
             <Row
               label="Created"
@@ -374,15 +376,19 @@ export default function EventDetailScreen({ route, navigation }) {
 
       {/* ── Owner Actions ── */}
       {isOwner ? (
-        <View style={[s.card, { marginBottom: sp.lg, gap: sp.sm }]}>
+        <View style={{ marginHorizontal: sp.md, marginTop: sp.md, marginBottom: sp.lg }}>
           <T
-            style={[
-              s.ownerBtn,
-              { backgroundColor: "#2a1515", borderColor: "#5c2020" },
-            ]}
+            style={{
+              backgroundColor: "#2a1515",
+              borderColor: "#5c2020",
+              borderWidth: 1,
+              borderRadius: rad.md,
+              paddingVertical: 16,
+              alignItems: "center",
+            }}
             onPress={function () {
               Alert.alert(
-                "Delete Event",
+                "Delete " + typeLabel,
                 "Are you sure? This cannot be undone.",
                 [
                   { text: "Cancel", style: "cancel" },
@@ -405,7 +411,7 @@ export default function EventDetailScreen({ route, navigation }) {
             <Text
               style={{ fontSize: fs.md, color: "#f87171", fontWeight: fw.semi }}
             >
-              Delete Event
+              Delete {typeLabel}
             </Text>
           </T>
         </View>
@@ -479,11 +485,5 @@ var s = StyleSheet.create({
     fontSize: fs.sm,
     fontWeight: fw.semi,
     color: c.text,
-  },
-  ownerBtn: {
-    paddingVertical: 16,
-    borderRadius: rad.md,
-    borderWidth: 1,
-    alignItems: "center",
   },
 });
