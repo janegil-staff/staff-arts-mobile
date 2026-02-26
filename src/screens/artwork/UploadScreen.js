@@ -57,6 +57,19 @@ var CURRENCIES = [
   { code: "JPY", symbol: "¥", label: "JPY (¥)" },
   { code: "CHF", symbol: "Fr", label: "CHF (Fr)" },
 ];
+var UNITS = [
+  { code: "cm", label: "cm" },
+  { code: "in", label: "inches" },
+  { code: "mm", label: "mm" },
+];
+// Categories that commonly have depth
+var DEPTH_CATEGORIES = [
+  "Sculpture",
+  "Installation",
+  "Ceramic",
+  "Mixed Media",
+  "Textile",
+];
 
 export default function UploadScreen({ navigation }) {
   var { user } = useAuth();
@@ -66,6 +79,10 @@ export default function UploadScreen({ navigation }) {
   var [category, setCategory] = useState("");
   var [medium, setMedium] = useState("");
   var [year, setYear] = useState("");
+  var [dimHeight, setDimHeight] = useState("");
+  var [dimWidth, setDimWidth] = useState("");
+  var [dimDepth, setDimDepth] = useState("");
+  var [dimUnit, setDimUnit] = useState("cm");
   var [forSale, setForSale] = useState(false);
   var [price, setPrice] = useState("");
   var [currency, setCurrency] = useState("USD");
@@ -75,6 +92,8 @@ export default function UploadScreen({ navigation }) {
   var activeCurrency = CURRENCIES.find(function (cur) {
     return cur.code === currency;
   });
+
+  var showDepth = DEPTH_CATEGORIES.indexOf(category) !== -1;
 
   async function pickImages() {
     var perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -105,6 +124,20 @@ export default function UploadScreen({ navigation }) {
         return i !== idx;
       }),
     );
+  }
+
+  function buildDimensions() {
+    var h = parseFloat(dimHeight);
+    var w = parseFloat(dimWidth);
+    if (!h && !w) return undefined;
+    var dims = { unit: dimUnit };
+    if (h) dims.height = h;
+    if (w) dims.width = w;
+    if (showDepth) {
+      var d = parseFloat(dimDepth);
+      if (d) dims.depth = d;
+    }
+    return dims;
   }
 
   async function onSubmit() {
@@ -139,6 +172,7 @@ export default function UploadScreen({ navigation }) {
         category: category,
         medium: medium,
         year: year ? parseInt(year) : undefined,
+        dimensions: buildDimensions(),
         forSale: forSale,
         price: forSale ? parseFloat(price) : 0,
         currency: currency,
@@ -152,6 +186,10 @@ export default function UploadScreen({ navigation }) {
       setCategory("");
       setMedium("");
       setYear("");
+      setDimHeight("");
+      setDimWidth("");
+      setDimDepth("");
+      setDimUnit("cm");
       setForSale(false);
       setPrice("");
       setCurrency("USD");
@@ -324,6 +362,85 @@ export default function UploadScreen({ navigation }) {
           })}
         </ScrollView>
 
+        {/* Dimensions */}
+        <Text style={s.label}>Dimensions</Text>
+        <Text style={s.sublabel}>
+          Optional — helps collectors assess the piece
+        </Text>
+
+        {/* Unit selector */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.sm }}
+        >
+          {UNITS.map(function (u) {
+            var active = dimUnit === u.code;
+            return (
+              <TouchableOpacity
+                key={u.code}
+                style={[s.chip, s.chipSmall, active && s.chipActive]}
+                onPress={function () {
+                  setDimUnit(u.code);
+                }}
+              >
+                <Text style={[s.chipText, active && s.chipTextActive]}>
+                  {u.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* H × W (× D) inputs */}
+        <View style={s.dimRow}>
+          <View style={s.dimField}>
+            <Text style={s.dimLabel}>H</Text>
+            <TextInput
+              style={s.dimInput}
+              value={dimHeight}
+              onChangeText={setDimHeight}
+              placeholder="0"
+              placeholderTextColor={c.textMuted}
+              keyboardType="decimal-pad"
+            />
+            <Text style={s.dimUnit}>{dimUnit}</Text>
+          </View>
+
+          <Text style={s.dimSeparator}>×</Text>
+
+          <View style={s.dimField}>
+            <Text style={s.dimLabel}>W</Text>
+            <TextInput
+              style={s.dimInput}
+              value={dimWidth}
+              onChangeText={setDimWidth}
+              placeholder="0"
+              placeholderTextColor={c.textMuted}
+              keyboardType="decimal-pad"
+            />
+            <Text style={s.dimUnit}>{dimUnit}</Text>
+          </View>
+
+          {showDepth ? (
+            <>
+              <Text style={s.dimSeparator}>×</Text>
+              <View style={s.dimField}>
+                <Text style={s.dimLabel}>D</Text>
+                <TextInput
+                  style={s.dimInput}
+                  value={dimDepth}
+                  onChangeText={setDimDepth}
+                  placeholder="0"
+                  placeholderTextColor={c.textMuted}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={s.dimUnit}>{dimUnit}</Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
         {/* For Sale */}
         <View style={s.saleRow}>
           <View>
@@ -440,6 +557,12 @@ var s = StyleSheet.create({
     marginBottom: sp.sm,
     marginTop: sp.md,
   },
+  sublabel: {
+    fontSize: fs.xs,
+    color: c.textMuted,
+    marginBottom: sp.sm,
+    marginTop: -4,
+  },
   input: {
     backgroundColor: c.surface,
     borderWidth: 1,
@@ -503,6 +626,10 @@ var s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border,
   },
+  chipSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
   chipActive: { backgroundColor: c.teal, borderColor: c.teal },
   chipText: {
     fontSize: fs.sm,
@@ -520,6 +647,48 @@ var s = StyleSheet.create({
     marginTop: sp.md,
     borderWidth: 1,
     borderColor: c.border,
+  },
+  // Dimensions
+  dimRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: sp.sm,
+  },
+  dimField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: rad.md,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+  },
+  dimLabel: {
+    fontSize: fs.xs,
+    color: c.textMuted,
+    fontWeight: fw.bold,
+    marginRight: 4,
+    width: 14,
+  },
+  dimInput: {
+    flex: 1,
+    fontSize: fs.md,
+    color: c.text,
+    paddingVertical: 0,
+    textAlign: "center",
+  },
+  dimUnit: {
+    fontSize: fs.xs,
+    color: c.textMuted,
+    marginLeft: 2,
+  },
+  dimSeparator: {
+    fontSize: fs.md,
+    color: c.textMuted,
+    fontWeight: fw.medium,
   },
   btn: {
     backgroundColor: c.teal,

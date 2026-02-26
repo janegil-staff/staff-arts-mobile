@@ -14,20 +14,24 @@ import {
 } from "react-native";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { useAuth } from "../../store/authStore";
+import { artworks } from "../../services/data";
 
 var W = Dimensions.get("window").width;
 var IMG_H = W * 1.15;
 
+// ── Image Slider ──
+
 function ImageSlider({ images }) {
   var [idx, setIdx] = useState(0);
   var ref = useRef(null);
-  if (!images?.length)
+
+  if (!images?.length) {
     return (
-      <View
-        style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }}
-      />
+      <View style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }} />
     );
-  if (images.length === 1)
+  }
+
+  if (images.length === 1) {
     return (
       <Image
         source={{ uri: images[0].url }}
@@ -35,6 +39,8 @@ function ImageSlider({ images }) {
         resizeMode="cover"
       />
     );
+  }
+
   return (
     <View>
       <FlatList
@@ -43,22 +49,26 @@ function ImageSlider({ images }) {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(_, i) => String(i)}
-        onMomentumScrollEnd={(e) =>
-          setIdx(Math.round(e.nativeEvent.contentOffset.x / W))
-        }
-        renderItem={({ item }) => (
-          <Image
-            source={{ uri: item.url }}
-            style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }}
-            resizeMode="cover"
-          />
-        )}
+        keyExtractor={function (_, i) {
+          return String(i);
+        }}
+        onMomentumScrollEnd={function (e) {
+          setIdx(Math.round(e.nativeEvent.contentOffset.x / W));
+        }}
+        renderItem={function ({ item }) {
+          return (
+            <Image
+              source={{ uri: item.url }}
+              style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }}
+              resizeMode="cover"
+            />
+          );
+        }}
       />
       <View style={sl.dots}>
-        {images.map((_, i) => (
-          <View key={i} style={[sl.dot, i === idx && sl.dotActive]} />
-        ))}
+        {images.map(function (_, i) {
+          return <View key={i} style={[sl.dot, i === idx && sl.dotActive]} />;
+        })}
       </View>
       <View style={sl.counter}>
         <Text style={sl.counterText}>
@@ -97,6 +107,8 @@ var sl = S.create({
   },
   counterText: { color: "#fff", fontSize: fs.xs, fontWeight: fw.medium },
 });
+
+// ── Reusable Components ──
 
 function StatusBadge({ status }) {
   var colors = {
@@ -151,7 +163,7 @@ function Tag({ label, color, bg }) {
         paddingVertical: 6,
       }}
     >
-      <Text style={{ fontSize: fs.xs, color, fontWeight: fw.medium }}>
+      <Text style={{ fontSize: fs.xs, color: color, fontWeight: fw.medium }}>
         {label}
       </Text>
     </View>
@@ -228,82 +240,134 @@ function formatPrice(price, currency) {
       maximumFractionDigits: 0,
     });
   } catch {
-    return `$${price.toLocaleString()}`;
+    return "$" + price.toLocaleString();
   }
 }
 
-export default function Detail({ route, navigation: n }) {
+function formatDimensions(d) {
+  if (!d) return null;
+  if (!d.width && !d.height) return null;
+  var unit = d.unit || "in";
+  var parts = [];
+  if (d.height) parts.push(d.height);
+  if (d.width) parts.push(d.width);
+  if (d.depth) parts.push(d.depth);
+  return parts.join(" × ") + " " + unit;
+}
+
+// ── Main Screen ──
+
+export default function ArtworkDetailScreen({ route, navigation }) {
   var { id } = route.params;
-  const { user: currentUser } = useAuth();
-  var [a, sA] = useState(null);
-  var [ld, sL] = useState(true);
-  var [lk, sLk] = useState(false);
+  var { user: currentUser } = useAuth();
+  var [artwork, setArtwork] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [liked, setLiked] = useState(false);
   var [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    (async () => {
+  useEffect(function () {
+    (async function () {
       try {
-        var res = await fetch(`http://localhost:3000/api/artworks/${id}`);
-        var json = await res.json();
-        if (json.success) sA(json.data);
-        else console.log(json.error);
+        var data = await artworks.get(id);
+        setArtwork(data);
+        if (currentUser && data.likes) {
+          setLiked(
+            data.likes.some(function (uid) {
+              return uid === currentUser._id || uid._id === currentUser._id;
+            })
+          );
+        }
       } catch (e) {
-        console.log(e);
+        console.log("Failed to load artwork:", e.message);
       }
-      sL(false);
+      setLoading(false);
     })();
   }, [id]);
 
-  var handleDelete = () => {
+  async function handleLike() {
+    try {
+      var data = await artworks.like(id);
+      setLiked(data.liked);
+      setArtwork(function (prev) {
+        if (!prev) return prev;
+        return Object.assign({}, prev, {
+          likesCount: data.likesCount !== undefined ? data.likesCount : prev.likesCount,
+        });
+      });
+    } catch (e) {
+      console.log("Like failed:", e.message);
+    }
+  }
+
+  function handleDelete() {
     Alert.alert("Delete Artwork", "Are you sure? This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: async () => {
+        onPress: async function () {
           setDeleting(true);
           try {
-            var res = await fetch(`http://localhost:3000/api/artworks/${id}`, {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ userId: currentUser._id }),
-            });
-            var json = await res.json();
-            if (json.success) n.goBack();
+            await artworks.remove(id);
+            navigation.goBack();
           } catch (e) {
-            console.log(e);
+            Alert.alert("Error", e.message || "Failed to delete");
           }
           setDeleting(false);
         },
       },
     ]);
-  };
+  }
 
-  if (ld)
+  function handleShare() {
+    Share.share({ message: 'Check out "' + artwork.title + '"' });
+  }
+
+  function handleInquire() {
+    // Navigate to chat or inquiry flow
+    navigation.navigate("Chat", {
+      sellerId: artwork.artist?._id,
+      listingId: artwork._id,
+      listingTitle: artwork.title,
+      listingPrice: artwork.price,
+      listingImage: artwork.images?.[0]?.url,
+    });
+  }
+
+  // ── Loading / Error states ──
+
+  if (loading) {
     return (
       <View style={s.ctr}>
         <ActivityIndicator color={c.teal} />
       </View>
     );
-  if (!a)
+  }
+
+  if (!artwork) {
     return (
       <View style={s.ctr}>
         <Text style={{ color: c.textMuted }}>Not found</Text>
       </View>
     );
+  }
 
-  var ar = a.artist,
-    d = a.dimensions;
-  var isOwner = a.artist?.name === currentUser?.name;
-  var created = a.createdAt
-    ? new Date(a.createdAt).toLocaleDateString("en-US", {
+  // ── Derived data ──
+
+  var ar = artwork.artist;
+  var d = artwork.dimensions;
+  var dimStr = formatDimensions(d);
+  var isOwner = currentUser && ar && (ar._id === currentUser._id);
+
+  var created = artwork.createdAt
+    ? new Date(artwork.createdAt).toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
       })
     : null;
-  var updated = a.updatedAt
-    ? new Date(a.updatedAt).toLocaleDateString("en-US", {
+  var updated = artwork.updatedAt
+    ? new Date(artwork.updatedAt).toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -311,9 +375,9 @@ export default function Detail({ route, navigation: n }) {
     : null;
 
   var typeBadges = [];
-  if (a.isOriginal) typeBadges.push("Original");
-  if (a.isPrint) typeBadges.push("Print");
-  if (a.isDigital) typeBadges.push("Digital");
+  if (artwork.isOriginal) typeBadges.push("Original");
+  if (artwork.isPrint) typeBadges.push("Print");
+  if (artwork.isDigital) typeBadges.push("Digital");
 
   return (
     <ScrollView
@@ -321,7 +385,7 @@ export default function Detail({ route, navigation: n }) {
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
-      <ImageSlider images={a.images} />
+      <ImageSlider images={artwork.images} />
 
       {/* ── Title, Status & Meta ── */}
       <View style={s.card}>
@@ -341,12 +405,12 @@ export default function Detail({ route, navigation: n }) {
               flex: 1,
             }}
           >
-            {a.title}
+            {artwork.title}
           </Text>
-          {a.status && <StatusBadge status={a.status} />}
+          {artwork.status && <StatusBadge status={artwork.status} />}
         </View>
 
-        {a.isFeatured && (
+        {artwork.isFeatured && (
           <Text
             style={{
               fontSize: fs.xs,
@@ -368,12 +432,12 @@ export default function Detail({ route, navigation: n }) {
             marginBottom: sp.lg,
           }}
         >
-          {a.year && (
+          {artwork.year ? (
             <Text style={{ fontSize: fs.sm, color: c.textMuted }}>
-              {a.year}
+              {artwork.year}
             </Text>
-          )}
-          {a.medium && (
+          ) : null}
+          {artwork.medium ? (
             <Text
               style={{
                 fontSize: fs.sm,
@@ -382,10 +446,10 @@ export default function Detail({ route, navigation: n }) {
                 textTransform: "capitalize",
               }}
             >
-              {a.medium.replace(/_/g, " ")}
+              {artwork.medium.replace(/_/g, " ")}
             </Text>
-          )}
-          {a.subject && (
+          ) : null}
+          {artwork.subject ? (
             <Text
               style={{
                 fontSize: fs.sm,
@@ -393,9 +457,14 @@ export default function Detail({ route, navigation: n }) {
                 textTransform: "capitalize",
               }}
             >
-              {a.subject.replace(/_/g, " ")}
+              {artwork.subject.replace(/_/g, " ")}
             </Text>
-          )}
+          ) : null}
+          {dimStr ? (
+            <Text style={{ fontSize: fs.sm, color: c.textMuted }}>
+              {dimStr}
+            </Text>
+          ) : null}
         </View>
 
         {/* Type badges */}
@@ -407,9 +476,9 @@ export default function Detail({ route, navigation: n }) {
               marginBottom: sp.md,
             }}
           >
-            {typeBadges.map((b) => (
-              <Tag key={b} label={b} color={c.teal} bg={c.tealBg} />
-            ))}
+            {typeBadges.map(function (b) {
+              return <Tag key={b} label={b} color={c.teal} bg={c.tealBg} />;
+            })}
           </View>
         )}
 
@@ -417,9 +486,9 @@ export default function Detail({ route, navigation: n }) {
         {ar && (
           <T
             style={s.aRow}
-            onPress={() =>
-              n.navigate("ArtistProfile", { username: ar.username })
-            }
+            onPress={function () {
+              navigation.navigate("ArtistProfile", { username: ar.username });
+            }}
           >
             {ar.avatar ? (
               <Image source={{ uri: ar.avatar }} style={s.av} />
@@ -437,7 +506,7 @@ export default function Detail({ route, navigation: n }) {
                     color: c.text,
                   }}
                 >
-                  {ar.displayName}
+                  {ar.displayName || ar.name}
                 </Text>
                 {ar.verified && (
                   <Text style={{ fontSize: 14, color: c.teal }}>✓</Text>
@@ -490,44 +559,29 @@ export default function Detail({ route, navigation: n }) {
                   marginTop: 2,
                 }}
               >
-                {a.forSale && a.price > 0
-                  ? formatPrice(a.price, a.currency)
-                  : a.forSale
+                {artwork.forSale && artwork.price > 0
+                  ? formatPrice(artwork.price, artwork.currency)
+                  : artwork.forSale
                     ? "On request"
                     : "Not for sale"}
               </Text>
-              {a.forSale &&
-                a.price > 0 &&
-                a.currency &&
-                a.currency !== "USD" && (
+              {artwork.forSale &&
+                artwork.price > 0 &&
+                artwork.currency &&
+                artwork.currency !== "USD" && (
                   <Text style={{ fontSize: fs.xs, color: c.textMuted }}>
-                    {a.currency}
+                    {artwork.currency}
                   </Text>
                 )}
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: sp.sm }}>
-            <T
-              style={s.iconBtn}
-              onPress={async () => {
-                try {
-                  var res = await fetch(
-                    `http://localhost:3000/api/artworks/${id}/like`,
-                    { method: "POST" },
-                  );
-                  var json = await res.json();
-                  if (json.success) sLk(json.liked);
-                } catch {}
-              }}
-            >
-              <Text style={{ fontSize: 20, color: lk ? c.rose : c.textMuted }}>
-                {lk ? "♥" : "♡"}
+            <T style={s.iconBtn} onPress={handleLike}>
+              <Text style={{ fontSize: 20, color: liked ? c.rose : c.textMuted }}>
+                {liked ? "♥" : "♡"}
               </Text>
             </T>
-            <T
-              style={s.iconBtn}
-              onPress={() => Share.share({ message: `Check out "${a.title}"` })}
-            >
+            <T style={s.iconBtn} onPress={handleShare}>
               <Text style={{ fontSize: 18, color: c.textMuted }}>↗</Text>
             </T>
           </View>
@@ -546,20 +600,17 @@ export default function Detail({ route, navigation: n }) {
               <Text style={s.btnText}>Delete Artwork</Text>
             )}
           </T>
-        ) : (
-          a.status === "available" &&
-          a.forSale && (
-            <T style={s.buyBtn}>
-              <Text style={s.btnText}>Inquire to Purchase</Text>
-            </T>
-          )
-        )}
+        ) : artwork.status === "available" && artwork.forSale ? (
+          <T style={s.buyBtn} onPress={handleInquire}>
+            <Text style={s.btnText}>Inquire to Purchase</Text>
+          </T>
+        ) : null}
       </View>
 
       {/* ── Description ── */}
-      {(a.description || a.aiDescription) && (
+      {(artwork.description || artwork.aiDescription) && (
         <Section label="ABOUT THIS WORK">
-          {a.description ? (
+          {artwork.description ? (
             <Text
               style={{
                 fontSize: fs.md,
@@ -567,11 +618,11 @@ export default function Detail({ route, navigation: n }) {
                 lineHeight: 24,
               }}
             >
-              {a.description}
+              {artwork.description}
             </Text>
           ) : null}
-          {a.aiDescription && a.aiDescription !== a.description ? (
-            <View style={{ marginTop: a.description ? sp.md : 0 }}>
+          {artwork.aiDescription && artwork.aiDescription !== artwork.description ? (
+            <View style={{ marginTop: artwork.description ? sp.md : 0 }}>
               <Text
                 style={{
                   fontSize: fs.xxs,
@@ -590,7 +641,7 @@ export default function Detail({ route, navigation: n }) {
                   fontStyle: "italic",
                 }}
               >
-                {a.aiDescription}
+                {artwork.aiDescription}
               </Text>
             </View>
           ) : null}
@@ -600,60 +651,57 @@ export default function Detail({ route, navigation: n }) {
       {/* ── Artwork Details ── */}
       <Section label="DETAILS">
         <View style={{ gap: 2 }}>
-          {a.medium && <Row l="Medium" v={a.medium.replace(/_/g, " ")} />}
-          {a.style && <Row l="Style" v={a.style.replace(/_/g, " ")} />}
-          {a.subject && <Row l="Subject" v={a.subject.replace(/_/g, " ")} />}
-          {a.mood && <Row l="Mood" v={a.mood} />}
-          {d?.width && d?.height && (
-            <Row
-              l="Dimensions"
-              v={`${d.width} × ${d.height}${d.depth ? ` × ${d.depth}` : ""} ${d.unit || "in"}`}
-            />
-          )}
-          {a.year && <Row l="Year" v={String(a.year)} />}
-          {a.edition && <Row l="Edition" v={a.edition} />}
-          {a.isOriginal && <Row l="Type" v="Original" />}
-          {a.isPrint && <Row l="Print" v="Yes" />}
-          {a.isDigital && <Row l="Digital" v="Yes" />}
-          {a.currency && <Row l="Currency" v={a.currency} />}
-          {a.shippingInfo && <Row l="Shipping" v={a.shippingInfo} />}
+          {artwork.medium ? <Row l="Medium" v={artwork.medium.replace(/_/g, " ")} /> : null}
+          {artwork.style ? <Row l="Style" v={artwork.style.replace(/_/g, " ")} /> : null}
+          {artwork.subject ? <Row l="Subject" v={artwork.subject.replace(/_/g, " ")} /> : null}
+          {artwork.mood ? <Row l="Mood" v={artwork.mood} /> : null}
+          {dimStr ? <Row l="Dimensions" v={dimStr} /> : null}
+          {artwork.year ? <Row l="Year" v={String(artwork.year)} /> : null}
+          {artwork.edition ? <Row l="Edition" v={artwork.edition} /> : null}
+          {artwork.isOriginal ? <Row l="Type" v="Original" /> : null}
+          {artwork.isPrint ? <Row l="Print" v="Yes" /> : null}
+          {artwork.isDigital ? <Row l="Digital" v="Yes" /> : null}
+          {artwork.currency ? <Row l="Currency" v={artwork.currency} /> : null}
+          {artwork.shippingInfo ? <Row l="Shipping" v={artwork.shippingInfo} /> : null}
         </View>
       </Section>
 
       {/* ── Materials ── */}
-      {a.materials?.length > 0 && (
+      {artwork.materials?.length > 0 && (
         <Section label="MATERIALS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
-            {a.materials.map((m) => (
-              <Tag key={m} label={m} color={c.text} bg={c.surfaceDim} />
-            ))}
+            {artwork.materials.map(function (m) {
+              return <Tag key={m} label={m} color={c.text} bg={c.surfaceDim} />;
+            })}
           </View>
         </Section>
       )}
 
       {/* ── Categories ── */}
-      {a.categories?.length > 0 && (
+      {artwork.categories?.length > 0 && (
         <Section label="CATEGORIES">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
-            {a.categories.map((cat) => (
-              <Tag
-                key={cat}
-                label={cat.replace(/_/g, " ")}
-                color={c.tealLight}
-                bg={c.tealBg}
-              />
-            ))}
+            {artwork.categories.map(function (cat) {
+              return (
+                <Tag
+                  key={cat}
+                  label={cat.replace(/_/g, " ")}
+                  color={c.tealLight}
+                  bg={c.tealBg}
+                />
+              );
+            })}
           </View>
         </Section>
       )}
 
       {/* ── Dominant Colors ── */}
-      {a.dominantColors?.length > 0 && (
+      {artwork.dominantColors?.length > 0 && (
         <Section label="COLOR PALETTE">
           <View style={{ flexDirection: "row", gap: sp.sm, flexWrap: "wrap" }}>
-            {a.dominantColors.map((hex, i) => (
-              <ColorDot key={i} hex={hex} />
-            ))}
+            {artwork.dominantColors.map(function (hex, i) {
+              return <ColorDot key={i} hex={hex} />;
+            })}
           </View>
         </Section>
       )}
@@ -667,31 +715,33 @@ export default function Detail({ route, navigation: n }) {
             paddingVertical: sp.sm,
           }}
         >
-          <StatBlock label="Views" value={a.views || 0} />
-          <StatBlock label="Likes" value={a.likesCount || 0} />
-          <StatBlock label="Saves" value={a.savesCount || 0} />
-          <StatBlock label="Comments" value={a.commentsCount || 0} />
+          <StatBlock label="Views" value={artwork.views || 0} />
+          <StatBlock label="Likes" value={artwork.likesCount || 0} />
+          <StatBlock label="Saves" value={artwork.savesCount || 0} />
+          <StatBlock label="Comments" value={artwork.commentsCount || 0} />
         </View>
       </Section>
 
       {/* ── Tags ── */}
-      {a.tags?.length > 0 && (
+      {artwork.tags?.length > 0 && (
         <Section label="TAGS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
-            {a.tags.map((t) => (
-              <Tag key={t} label={t} color={c.teal} bg={c.tealBg} />
-            ))}
+            {artwork.tags.map(function (tag) {
+              return <Tag key={tag} label={tag} color={c.teal} bg={c.tealBg} />;
+            })}
           </View>
         </Section>
       )}
 
       {/* ── AI Tags ── */}
-      {a.aiTags?.length > 0 && (
+      {artwork.aiTags?.length > 0 && (
         <Section label="AI TAGS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
-            {a.aiTags.map((t) => (
-              <Tag key={t} label={t} color={c.textMuted} bg={c.surfaceDim} />
-            ))}
+            {artwork.aiTags.map(function (tag) {
+              return (
+                <Tag key={tag} label={tag} color={c.textMuted} bg={c.surfaceDim} />
+              );
+            })}
           </View>
         </Section>
       )}

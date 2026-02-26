@@ -1,18 +1,23 @@
 import * as SecureStore from "expo-secure-store";
 import { API_URL, API } from "../constants/api";
+
 async function request(ep, opts = {}) {
   var { method = "GET", body, skipAuth = false } = opts;
   var h = { "Content-Type": "application/json" };
+
   if (!skipAuth) {
-    var t = await SecureStore.getItemAsync("accessToken");
+    var t = await SecureStore.getItemAsync("token");
     if (t) h["Authorization"] = `Bearer ${t}`;
   }
+
   var res = await fetch(`${API_URL}${ep}`, {
     method,
     headers: h,
     body: body ? JSON.stringify(body) : undefined,
   });
+
   var data = await res.json();
+
   if (
     res.status === 401 &&
     !skipAuth &&
@@ -20,7 +25,7 @@ async function request(ep, opts = {}) {
   ) {
     var ok = await refresh();
     if (ok) {
-      var t2 = await SecureStore.getItemAsync("accessToken");
+      var t2 = await SecureStore.getItemAsync("token");
       h["Authorization"] = `Bearer ${t2}`;
       var r2 = await fetch(`${API_URL}${ep}`, {
         method,
@@ -33,27 +38,33 @@ async function request(ep, opts = {}) {
     }
     throw { response: { status: 401, data } };
   }
+
   if (!res.ok) throw { response: { status: res.status, data } };
   return data;
 }
+
 async function refresh() {
   try {
-    var rt = await SecureStore.getItemAsync("refreshToken");
+    var rt = await SecureStore.getItemAsync("rtoken");
     if (!rt) return false;
+
     var r = await fetch(`${API_URL}${API.refresh}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken: rt }),
     });
+
     if (!r.ok) return false;
+
     var d = await r.json();
-    await SecureStore.setItemAsync("accessToken", d.data.token);
-    await SecureStore.setItemAsync("refreshToken", d.data.refreshToken);
+    await SecureStore.setItemAsync("token", d.data.token);
+    await SecureStore.setItemAsync("rtoken", d.data.refreshToken);
     return true;
   } catch {
     return false;
   }
 }
+
 export default {
   get: (e, s) => request(e, { skipAuth: s }),
   post: (e, b, s) => request(e, { method: "POST", body: b, skipAuth: s }),

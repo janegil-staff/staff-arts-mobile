@@ -1,11 +1,14 @@
 import * as SecureStore from "expo-secure-store";
-
-var BASE = "http://localhost:3000";
+import { API_URL, API } from "../constants/api";
 
 // ── Token helpers ──
 
 async function getToken() {
-  try { return await SecureStore.getItemAsync("token"); } catch (e) { return null; }
+  try {
+    return await SecureStore.getItemAsync("token");
+  } catch (e) {
+    return null;
+  }
 }
 
 async function saveTokens(token, refreshToken) {
@@ -47,7 +50,7 @@ function toQuery(params) {
 
 export var auth = {
   login: async function (email, password) {
-    var res = await fetch(BASE + "/api/mobile/auth/login", {
+    var res = await fetch(API_URL + API.login, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email, password: password }),
@@ -59,7 +62,7 @@ export var auth = {
   },
 
   register: async function (payload) {
-    var res = await fetch(BASE + "/api/mobile/auth/register", {
+    var res = await fetch(API_URL + API.register, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -71,7 +74,7 @@ export var auth = {
   },
 
   me: async function () {
-    var res = await fetch(BASE + "/api/mobile/me", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.me, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
@@ -86,7 +89,7 @@ export var auth = {
   },
 
   updateProfile: async function (data) {
-    var res = await fetch(BASE + "/api/mobile/auth/profile", {
+    var res = await fetch(API_URL + API.profile, {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
@@ -101,21 +104,25 @@ export var auth = {
 
 export var artworks = {
   list: async function (params) {
-    var res = await fetch(BASE + "/api/artworks" + toQuery(params), { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.artworks + toQuery(params), {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   get: async function (id) {
-    var res = await fetch(BASE + "/api/artworks/" + id, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.artworks + "/" + id, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   like: async function (id) {
-    var res = await fetch(BASE + "/api/artworks/" + id + "/like", {
+    var res = await fetch(API_URL + API.artworkLike(id), {
       method: "POST",
       headers: await authHeaders(),
     });
@@ -125,7 +132,7 @@ export var artworks = {
   },
 
   create: async function (data) {
-    var res = await fetch(BASE + "/api/artworks", {
+    var res = await fetch(API_URL + API.artworks, {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify(data),
@@ -136,7 +143,30 @@ export var artworks = {
   },
 
   getMine: async function (params) {
-    var res = await fetch(BASE + "/api/mobile/me/artworks" + toQuery(params), { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.myArtworks + toQuery(params), {
+      headers: await authHeaders(),
+    });
+    var json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Failed");
+    return json.data || json;
+  },
+
+  update: async function (id, data) {
+    var res = await fetch(API_URL + API.artworks + "/" + id, {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: JSON.stringify(data),
+    });
+    var json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Failed");
+    return json.data || json;
+  },
+
+  remove: async function (id) {
+    var res = await fetch(API_URL + API.artworks + "/" + id, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
@@ -148,7 +178,7 @@ export var artworks = {
 export var upload = {
   image: async function (uri, folder) {
     // Step 1: Get Cloudinary signature
-    var sigRes = await fetch(BASE + "/api/upload/signature", {
+    var sigRes = await fetch(API_URL + API.upload + "/signature", {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ folder: folder || "staff-arts" }),
@@ -171,7 +201,9 @@ export var upload = {
 
     var upRes = await fetch(sig.uploadUrl, { method: "POST", body: form });
     var upJson = await upRes.json();
-    if (!upRes.ok || upJson.error) throw new Error((upJson.error && upJson.error.message) || "Upload failed");
+    if (!upRes.ok || upJson.error) {
+      throw new Error((upJson.error && upJson.error.message) || "Upload failed");
+    }
 
     return {
       url: upJson.secure_url,
@@ -186,14 +218,16 @@ export var upload = {
 
 export var users = {
   get: async function (username) {
-    var res = await fetch(BASE + "/api/users/" + username, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.userProfile(username), {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   follow: async function (id) {
-    var res = await fetch(BASE + "/api/mobile/users/" + id + "/follow", {
+    var res = await fetch(API_URL + API.userFollow(id), {
       method: "POST",
       headers: await authHeaders(),
     });
@@ -207,14 +241,14 @@ export var users = {
 
 export var posts = {
   list: async function () {
-    var res = await fetch(BASE + "/api/mobile/posts", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.posts, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   like: async function (id) {
-    var res = await fetch(BASE + "/api/mobile/posts/" + id + "/like", {
+    var res = await fetch(API_URL + API.postLike(id), {
       method: "POST",
       headers: await authHeaders(),
     });
@@ -224,7 +258,7 @@ export var posts = {
   },
 
   comment: async function (id, text) {
-    var res = await fetch(BASE + "/api/mobile/posts/" + id + "/comment", {
+    var res = await fetch(API_URL + API.postComment(id), {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ text: text }),
@@ -239,14 +273,16 @@ export var posts = {
 
 export var events = {
   list: async function () {
-    var res = await fetch(BASE + "/api/events", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.events, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   get: async function (id) {
-    var res = await fetch(BASE + "/api/events/" + id, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.events + "/" + id, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
@@ -257,14 +293,16 @@ export var events = {
 
 export var exhibitions = {
   list: async function () {
-    var res = await fetch(BASE + "/api/exhibitions", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.exhibitions, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   get: async function (id) {
-    var res = await fetch(BASE + "/api/exhibitions/" + id, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.exhibitions + "/" + id, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
@@ -275,14 +313,16 @@ export var exhibitions = {
 
 export var orders = {
   list: async function () {
-    var res = await fetch(BASE + "/api/orders", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.orders, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   get: async function (id) {
-    var res = await fetch(BASE + "/api/orders/" + id, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.orders + "/" + id, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
@@ -293,21 +333,23 @@ export var orders = {
 
 export var commissions = {
   list: async function () {
-    var res = await fetch(BASE + "/api/commissions", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.commissions, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   get: async function (id) {
-    var res = await fetch(BASE + "/api/commissions/" + id, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.commissions + "/" + id, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   update: async function (id, data) {
-    var res = await fetch(BASE + "/api/commissions/" + id, {
+    var res = await fetch(API_URL + API.commissions + "/" + id, {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
@@ -322,21 +364,23 @@ export var commissions = {
 
 export var msgs = {
   conversations: async function () {
-    var res = await fetch(BASE + "/api/messages/conversations", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.conversations, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   list: async function (conversationId) {
-    var res = await fetch(BASE + "/api/messages?conversationId=" + conversationId, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.messages + "?conversationId=" + conversationId, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   send: async function (conversationId, text) {
-    var res = await fetch(BASE + "/api/messages", {
+    var res = await fetch(API_URL + API.messages, {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ conversationId: conversationId, text: text }),
@@ -351,14 +395,14 @@ export var msgs = {
 
 export var music = {
   list: async function () {
-    var res = await fetch(BASE + "/api/music", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.music, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   play: async function (id) {
-    var res = await fetch(BASE + "/api/music/" + id + "/play", {
+    var res = await fetch(API_URL + API.music + "/" + id + "/play", {
       method: "POST",
       headers: await authHeaders(),
     });
@@ -372,14 +416,14 @@ export var music = {
 
 export var notifs = {
   list: async function () {
-    var res = await fetch(BASE + "/api/notifications", { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.notifications, { headers: await authHeaders() });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
   },
 
   read: async function (id) {
-    var res = await fetch(BASE + "/api/notifications?id=" + id, {
+    var res = await fetch(API_URL + API.notifications + "?id=" + id, {
       method: "PUT",
       headers: await authHeaders(),
     });
@@ -389,7 +433,7 @@ export var notifs = {
   },
 
   readAll: async function () {
-    var res = await fetch(BASE + "/api/notifications?all=true", {
+    var res = await fetch(API_URL + API.notifications + "?all=true", {
       method: "PUT",
       headers: await authHeaders(),
     });
@@ -405,7 +449,9 @@ export var search = {
   query: async function (q, type) {
     var params = "?q=" + encodeURIComponent(q);
     if (type && type !== "all") params += "&type=" + type;
-    var res = await fetch(BASE + params, { headers: await authHeaders() });
+    var res = await fetch(API_URL + API.search + params, {
+      headers: await authHeaders(),
+    });
     var json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed");
     return json.data || json;
