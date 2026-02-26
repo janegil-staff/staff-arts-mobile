@@ -10,11 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  events as evSvc,
-  exhibitions as exSvc,
-  music as muSvc,
-} from "../../services/data";
+import { events as evSvc, exhibitions as exSvc } from "../../services/data";
 import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { format } from "date-fns";
@@ -23,7 +19,12 @@ import { format } from "date-fns";
 
 var TYPE_CONFIG = {
   event: { icon: "📅", label: "Event", color: "#2dd4a0", bg: "#0d3b2e" },
-  exhibition: { icon: "🖼️", label: "Exhibition", color: "#60a5fa", bg: "#1e2d4a" },
+  exhibition: {
+    icon: "🖼️",
+    label: "Exhibition",
+    color: "#60a5fa",
+    bg: "#1e2d4a",
+  },
   music: { icon: "🎵", label: "Music", color: "#c084fc", bg: "#2d1b4e" },
 };
 
@@ -31,14 +32,23 @@ var TYPE_CONFIG = {
 
 function ShowRow({ item, onPress }) {
   var cfg = TYPE_CONFIG[item._type] || TYPE_CONFIG.event;
-  var img = item.coverImage?.url || item.artwork?.url || null;
+  var img = item.coverImage?.url || null;
 
   return (
     <T style={s.row} onPress={onPress} activeOpacity={0.7}>
       {img ? (
         <Image source={{ uri: img }} style={s.rowImg} />
       ) : (
-        <View style={[s.rowImg, { backgroundColor: cfg.bg, alignItems: "center", justifyContent: "center" }]}>
+        <View
+          style={[
+            s.rowImg,
+            {
+              backgroundColor: cfg.bg,
+              alignItems: "center",
+              justifyContent: "center",
+            },
+          ]}
+        >
           <Text style={{ fontSize: 16 }}>{cfg.icon}</Text>
         </View>
       )}
@@ -46,10 +56,18 @@ function ShowRow({ item, onPress }) {
         <Text style={s.rowTitle} numberOfLines={1}>
           {item.title}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            marginTop: 3,
+          }}
+        >
           <View style={[s.typeDot, { backgroundColor: cfg.color }]} />
-          <Text style={s.rowMeta}>
+          <Text style={s.rowMeta} numberOfLines={1}>
             {cfg.label}
+            {item._subType ? " · " + item._subType : ""}
             {item._dateStr ? "  ·  " + item._dateStr : ""}
             {item._location ? "  ·  " + item._location : ""}
           </Text>
@@ -60,7 +78,9 @@ function ShowRow({ item, onPress }) {
           <Text style={s.freeText}>Free</Text>
         </View>
       ) : null}
-      <Text style={{ color: c.textMuted, fontSize: fs.sm, marginLeft: sp.sm }}>›</Text>
+      <Text style={{ color: c.textMuted, fontSize: fs.sm, marginLeft: sp.sm }}>
+        ›
+      </Text>
     </T>
   );
 }
@@ -76,14 +96,18 @@ export default function ShowsScreen({ navigation }) {
   var load = useCallback(async function () {
     var all = [];
 
+    // Fetch events (includes music shows with category: "music")
     try {
       var ev = await evSvc.list({});
       var evList = ev.events || ev.data?.events || [];
       evList.forEach(function (e) {
         var d = e.date || e.startDate;
+        var isMusicShow = e.category === "music";
+        var subType = e.type ? e.type.replace("_", " ") : "";
         all.push({
           ...e,
-          _type: "event",
+          _type: isMusicShow ? "music" : "event",
+          _subType: subType,
           _sortDate: d ? new Date(d).getTime() : 0,
           _dateStr: d ? format(new Date(d), "MMM d") : "",
           _location: e.location || "",
@@ -93,6 +117,7 @@ export default function ShowsScreen({ navigation }) {
       console.log("Shows events error:", e.message);
     }
 
+    // Fetch exhibitions
     try {
       var ex = await exSvc.list({});
       var exList = ex.exhibitions || ex.data?.exhibitions || [];
@@ -101,30 +126,17 @@ export default function ShowsScreen({ navigation }) {
         all.push({
           ...e,
           _type: "exhibition",
+          _subType: e.status || "",
           _sortDate: d ? new Date(d).getTime() : 0,
-          _dateStr: d ? format(new Date(d), "MMM d") + (e.endDate ? " – " + format(new Date(e.endDate), "MMM d") : "") : "",
+          _dateStr: d
+            ? format(new Date(d), "MMM d") +
+              (e.endDate ? " – " + format(new Date(e.endDate), "MMM d") : "")
+            : "",
           _location: e.location || "",
         });
       });
     } catch (e) {
       console.log("Shows exhibitions error:", e.message);
-    }
-
-    try {
-      var mu = await muSvc.list({});
-      var muList = mu.tracks || mu.data?.tracks || mu.songs || mu.data?.songs || [];
-      muList.forEach(function (t) {
-        var d = t.createdAt || t.releaseDate;
-        all.push({
-          ...t,
-          _type: "music",
-          _sortDate: d ? new Date(d).getTime() : 0,
-          _dateStr: d ? format(new Date(d), "MMM d") : "",
-          _location: t.artist?.displayName || t.artist?.name || "",
-        });
-      });
-    } catch (e) {
-      console.log("Shows music error:", e.message);
     }
 
     // Sort newest first
@@ -160,14 +172,22 @@ export default function ShowsScreen({ navigation }) {
   }
 
   function handleItemPress(item) {
-    if (item._type === "event") {
+    if (item._type === "event" || item._type === "music") {
       navigation.navigate("EventDetail", { id: item._id });
     } else if (item._type === "exhibition") {
       navigation.navigate("ExhibitionDetail", { id: item._id });
-    } else if (item._type === "music") {
-      navigation.navigate("Music");
     }
   }
+
+  // Count by type for nav badges
+  var eventCount = 0;
+  var exhibitionCount = 0;
+  var musicCount = 0;
+  items.forEach(function (i) {
+    if (i._type === "event") eventCount++;
+    else if (i._type === "exhibition") exhibitionCount++;
+    else if (i._type === "music") musicCount++;
+  });
 
   if (loading) {
     return (
@@ -201,6 +221,11 @@ export default function ShowsScreen({ navigation }) {
           >
             <Text style={s.navIcon}>📅</Text>
             <Text style={s.navLabel}>Events</Text>
+            {eventCount > 0 ? (
+              <View style={s.countBadge}>
+                <Text style={s.countText}>{eventCount}</Text>
+              </View>
+            ) : null}
           </T>
           <T
             style={s.navBtn}
@@ -210,6 +235,11 @@ export default function ShowsScreen({ navigation }) {
           >
             <Text style={s.navIcon}>🖼️</Text>
             <Text style={s.navLabel}>Exhibitions</Text>
+            {exhibitionCount > 0 ? (
+              <View style={s.countBadge}>
+                <Text style={s.countText}>{exhibitionCount}</Text>
+              </View>
+            ) : null}
           </T>
           <T
             style={s.navBtn}
@@ -219,6 +249,11 @@ export default function ShowsScreen({ navigation }) {
           >
             <Text style={s.navIcon}>🎵</Text>
             <Text style={s.navLabel}>Music</Text>
+            {musicCount > 0 ? (
+              <View style={s.countBadge}>
+                <Text style={s.countText}>{musicCount}</Text>
+              </View>
+            ) : null}
           </T>
         </View>
 
@@ -244,8 +279,10 @@ export default function ShowsScreen({ navigation }) {
             <Text style={{ fontSize: fs.lg, color: c.textSecondary }}>
               No shows yet
             </Text>
-            <Text style={{ fontSize: fs.sm, color: c.textMuted, marginTop: sp.sm }}>
-              Create an event, exhibition, or upload music
+            <Text
+              style={{ fontSize: fs.sm, color: c.textMuted, marginTop: sp.sm }}
+            >
+              Create an event, exhibition, or music show
             </Text>
           </View>
         )}
@@ -297,6 +334,21 @@ var s = StyleSheet.create({
     color: c.textSecondary,
     fontWeight: fw.medium,
   },
+  countBadge: {
+    backgroundColor: c.teal,
+    borderRadius: rad.full,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+    marginTop: 2,
+  },
+  countText: {
+    fontSize: 10,
+    color: c.textInverse,
+    fontWeight: fw.bold,
+  },
 
   // Timeline
   timelineLabel: {
@@ -332,6 +384,7 @@ var s = StyleSheet.create({
   rowMeta: {
     fontSize: fs.xs,
     color: c.textMuted,
+    flex: 1,
   },
   typeDot: {
     width: 6,

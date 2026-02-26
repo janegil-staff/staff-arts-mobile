@@ -336,12 +336,13 @@ export default function MainNav() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        // In MainNav, change the tabBarStyle:
         tabBarStyle: {
           backgroundColor: c.surface,
           borderTopColor: c.borderLight,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 94 : 72,
-          paddingBottom: Platform.OS === "ios" ? 28 : 10,
+          height: Platform.OS === "ios" ? 94 : 90, // ← increased from 72
+          paddingBottom: Platform.OS === "ios" ? 28 : 20, // ← increased from 10
           paddingTop: 4,
           elevation: 0,
         },

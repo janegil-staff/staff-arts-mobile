@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -22,6 +23,7 @@ import { colors as c, sp, rad, fs, fw } from "../../constants/theme";
 var SHOW_TYPES = [
   { key: "exhibition", label: "Exhibition" },
   { key: "event", label: "Event" },
+  { key: "music", label: "Music" },
 ];
 
 var EVENT_TYPES = [
@@ -30,6 +32,15 @@ var EVENT_TYPES = [
   { key: "talk", label: "Talk" },
   { key: "fair", label: "Fair" },
   { key: "other", label: "Other" },
+];
+
+var MUSIC_TYPES = [
+  { key: "concert", label: "Concert" },
+  { key: "dj_set", label: "DJ Set" },
+  { key: "live_performance", label: "Live Performance" },
+  { key: "open_mic", label: "Open Mic" },
+  { key: "festival", label: "Festival" },
+  { key: "album_release", label: "Album Release" },
 ];
 
 var CURRENCIES = [
@@ -73,6 +84,7 @@ export default function CreateShowScreen({ navigation }) {
 
   // Event-specific
   var [eventType, setEventType] = useState("other");
+  var [musicType, setMusicType] = useState("concert");
   var [maxAttendees, setMaxAttendees] = useState("");
 
   // State
@@ -80,6 +92,7 @@ export default function CreateShowScreen({ navigation }) {
   var [progress, setProgress] = useState("");
 
   var isExhibition = showType === "exhibition";
+  var isMusic = showType === "music";
 
   async function pickCover() {
     var perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -172,10 +185,13 @@ export default function CreateShowScreen({ navigation }) {
           currency: currency,
         });
       } else {
+        // Both "event" and "music" are saved as events
+        var typeValue = isMusic ? musicType : eventType;
         await events.create({
           title: title.trim(),
           description: description.trim(),
-          type: eventType,
+          type: typeValue,
+          category: showType,
           coverImage: uploadedCover,
           date: startDate.toISOString(),
           endDate: endDate.toISOString(),
@@ -192,19 +208,19 @@ export default function CreateShowScreen({ navigation }) {
       setSubmitting(false);
       setProgress("");
 
-      // goBack() returns to the list screen which uses useFocusEffect to reload
-      Alert.alert(
-        "Success",
-        (isExhibition ? "Exhibition" : "Event") + " created!",
-        [
-          {
-            text: "OK",
-            onPress: function () {
-              navigation.goBack();
-            },
+      var typeLabel = isExhibition
+        ? "Exhibition"
+        : isMusic
+          ? "Music show"
+          : "Event";
+      Alert.alert("Success", typeLabel + " created!", [
+        {
+          text: "OK",
+          onPress: function () {
+            navigation.goBack();
           },
-        ],
-      );
+        },
+      ]);
     } catch (e) {
       setSubmitting(false);
       setProgress("");
@@ -257,7 +273,7 @@ export default function CreateShowScreen({ navigation }) {
         </View>
 
         {/* Event Type (events only) */}
-        {!isExhibition ? (
+        {!isExhibition && !isMusic ? (
           <View>
             <Text style={s.label}>Event Type</Text>
             <ScrollView
@@ -277,6 +293,35 @@ export default function CreateShowScreen({ navigation }) {
                   >
                     <Text style={[s.chipText, active && s.chipTextActive]}>
                       {et.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Music Type (music only) */}
+        {isMusic ? (
+          <View>
+            <Text style={s.label}>Music Type</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.sm }}
+            >
+              {MUSIC_TYPES.map(function (mt) {
+                var active = musicType === mt.key;
+                return (
+                  <TouchableOpacity
+                    key={mt.key}
+                    style={[s.chip, active && s.chipActive]}
+                    onPress={function () {
+                      setMusicType(mt.key);
+                    }}
+                  >
+                    <Text style={[s.chipText, active && s.chipTextActive]}>
+                      {mt.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -311,7 +356,13 @@ export default function CreateShowScreen({ navigation }) {
           style={s.input}
           value={title}
           onChangeText={setTitle}
-          placeholder={isExhibition ? "Exhibition title" : "Event title"}
+          placeholder={
+            isExhibition
+              ? "Exhibition title"
+              : isMusic
+                ? "Show name"
+                : "Event title"
+          }
           placeholderTextColor={c.textMuted}
         />
 
@@ -413,7 +464,7 @@ export default function CreateShowScreen({ navigation }) {
           </View>
         )}
 
-        {/* Max Attendees (events only) */}
+        {/* Max Attendees (events and music only) */}
         {!isExhibition ? (
           <View>
             <Text style={s.label}>Max Attendees</Text>
@@ -512,7 +563,11 @@ export default function CreateShowScreen({ navigation }) {
             </View>
           ) : (
             <Text style={s.btnText}>
-              {isExhibition ? "Create Exhibition" : "Create Event"}
+              {isExhibition
+                ? "Create Exhibition"
+                : isMusic
+                  ? "Create Music Show"
+                  : "Create Event"}
             </Text>
           )}
         </TouchableOpacity>
@@ -530,6 +585,10 @@ var s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: sp.lg,
     paddingVertical: sp.md,
+    paddingTop:
+      Platform.OS === "android"
+        ? (StatusBar.currentHeight || 40) + sp.md
+        : sp.md,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },

@@ -176,7 +176,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={s.sl}>UPCOMING</Text>
             <TouchableOpacity
               onPress={function () {
-                navigation.navigate("Events");
+                navigation.navigate("Shows"); // ← change from "Events" to "Shows"
               }}
             >
               <Text style={{ fontSize: fs.sm, color: c.teal }}>See all</Text>
