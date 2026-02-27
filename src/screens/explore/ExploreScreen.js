@@ -190,7 +190,7 @@ function FilterModal({ visible, onClose, filters, onApply }) {
     setSort("newest");
     setForSale("all");
     setStyle("all");
-    setPriceCurrency("");
+    setPriceCurrency("NOK");
     setMinPrice("");
     setMaxPrice("");
   }
@@ -294,7 +294,7 @@ export default function ExploreScreen({ navigation }) {
     sort: "newest",
     forSale: "all",
     style: "all",
-    currency: "",
+    currency: "NOK",
     minPrice: "",
     maxPrice: "",
   });
@@ -330,7 +330,7 @@ export default function ExploreScreen({ navigation }) {
     filters.sort !== "newest",
     filters.forSale !== "all",
     filters.style !== "all",
-    filters.currency !== "",
+    filters.currency !== "NOK",
     filters.minPrice !== "",
     filters.maxPrice !== "",
   ].filter(Boolean).length;
@@ -542,7 +542,7 @@ export default function ExploreScreen({ navigation }) {
                     </Text>
                   </View>
                 )}
-                <T onPress={function () { setFilters({ sort: "newest", forSale: "all", style: "all", currency: "", minPrice: "", maxPrice: "" }); }}>
+                <T onPress={function () { setFilters({ sort: "newest", forSale: "all", style: "all", currency: "NOK", minPrice: "", maxPrice: "" }); }}>
                   <Text style={{ fontSize: fs.xs, color: c.teal, fontWeight: fw.semi }}>Clear all</Text>
                 </T>
               </View>
