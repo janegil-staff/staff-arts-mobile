@@ -91,23 +91,13 @@ function ListingCard({ item, onPress, emoji }) {
           {item.title}
         </Text>
         {dateStr ? (
-          <Text
-            style={{
-              fontSize: fs.xs,
-              color: c.textMuted,
-              marginTop: 4,
-            }}
-          >
+          <Text style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 4 }}>
             {dateStr}
           </Text>
         ) : null}
         {item.location ? (
           <Text
-            style={{
-              fontSize: fs.xs,
-              color: c.textMuted,
-              marginTop: 2,
-            }}
+            style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 2 }}
             numberOfLines={1}
           >
             📍 {item.location}
@@ -141,14 +131,13 @@ function ListingCard({ item, onPress, emoji }) {
 
 export default function ArtistProfile({ route, navigation: n }) {
   var { username, id } = route.params;
+  var identifier = username || id;
   var [p, sP] = useState(null);
   var [arts, sA] = useState([]);
   var [events, sEv] = useState([]);
   var [exhibitions, sEx] = useState([]);
   var [ld, sL] = useState(true);
   var [fol, sF] = useState(false);
-
-  var profileKey = username || id || "";
 
   useFocusEffect(
     useCallback(
@@ -164,12 +153,12 @@ export default function ArtistProfile({ route, navigation: n }) {
 
         (async function () {
           try {
-            var d;
-            if (username) {
-              d = await users.getByUsername(username);
-            } else if (id) {
-              d = await users.getById(id);
+            if (!identifier) {
+              sL(false);
+              return;
             }
+
+            var d = await users.get(identifier);
 
             if (cancelled || !d) {
               if (!cancelled) sL(false);
@@ -188,25 +177,19 @@ export default function ArtistProfile({ route, navigation: n }) {
               if (cancelled) return;
 
               var fetchedArts = artRes.artworks || artRes.data || [];
-              var filteredArts = fetchedArts.filter(function (art) {
-                var artArtistId = String(art.artist?._id || art.artist || "");
-                return artArtistId === String(d._id);
-              });
-              sA(filteredArts);
+              sA(fetchedArts.filter(function (art) {
+                return String(art.artist?._id || art.artist || "") === String(d._id);
+              }));
 
               var fetchedEvs = evRes.events || evRes.data || [];
-              var filteredEvs = fetchedEvs.filter(function (ev) {
-                var evOrgId = String(ev.organizer?._id || ev.organizer || "");
-                return evOrgId === String(d._id);
-              });
-              sEv(filteredEvs);
+              sEv(fetchedEvs.filter(function (ev) {
+                return String(ev.organizer?._id || ev.organizer || "") === String(d._id);
+              }));
 
               var fetchedExs = exRes.exhibitions || exRes.data || [];
-              var filteredExs = fetchedExs.filter(function (ex) {
-                var exOrgId = String(ex.organizer?._id || ex.organizer || "");
-                return exOrgId === String(d._id);
-              });
-              sEx(filteredExs);
+              sEx(fetchedExs.filter(function (ex) {
+                return String(ex.organizer?._id || ex.organizer || "") === String(d._id);
+              }));
             }
           } catch (e) {
             console.log("[ArtistProfile] Error:", e.message);
@@ -214,11 +197,9 @@ export default function ArtistProfile({ route, navigation: n }) {
           if (!cancelled) sL(false);
         })();
 
-        return function () {
-          cancelled = true;
-        };
+        return function () { cancelled = true; };
       },
-      [profileKey],
+      [identifier],
     ),
   );
 
@@ -235,6 +216,7 @@ export default function ArtistProfile({ route, navigation: n }) {
         <ActivityIndicator color={c.teal} />
       </View>
     );
+
   if (!p)
     return (
       <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -246,16 +228,22 @@ export default function ArtistProfile({ route, navigation: n }) {
       </View>
     );
 
-  var musicShows = events.filter(function (ev) {
-    return ev.category === "music";
-  });
-  var regularEvents = events.filter(function (ev) {
-    return ev.category !== "music";
-  });
+  var musicShows = events.filter(function (ev) { return ev.category === "music"; });
+  var regularEvents = events.filter(function (ev) { return ev.category !== "music"; });
+
+  function navigateToProfile(profileObj) {
+    if (!profileObj) return;
+    var param = profileObj.username
+      ? { username: profileObj.username }
+      : profileObj._id
+        ? { id: profileObj._id }
+        : null;
+    if (param) n.push("ArtistProfile", param);
+  }
 
   return (
     <FlatList
-      key={profileKey}
+      key={identifier}
       style={{ flex: 1, backgroundColor: c.bg }}
       data={arts}
       keyExtractor={function (i) { return i._id; }}

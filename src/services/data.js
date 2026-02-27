@@ -131,7 +131,9 @@ export var auth = {
   },
 
   me: async function () {
-    var res = await fetchWithRetry(API_URL + API.me, { headers: await authHeaders() });
+    var res = await fetchWithRetry(API_URL + API.me, {
+      headers: await authHeaders(),
+    });
     return parseResponse(res);
   },
 
@@ -148,6 +150,15 @@ export var auth = {
       method: "PUT",
       headers: await authHeaders(),
       body: JSON.stringify(data),
+    });
+    return parseResponse(res);
+  },
+
+  savePushToken: async function (token) {
+    var res = await fetchWithRetry(API_URL + "/api/mobile/push-token", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ pushToken: token }),
     });
     return parseResponse(res);
   },
@@ -198,7 +209,11 @@ export var artworks = {
     if (!res.ok) {
       var text = await res.text();
       var err;
-      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      try {
+        err = JSON.parse(text);
+      } catch (e) {
+        err = {};
+      }
       throw new Error(err.error || "Failed to delete");
     }
     var text = await res.text();
@@ -239,7 +254,8 @@ export var upload = {
 
     var filename = uri.split("/").pop();
     var ext = filename.split(".").pop().toLowerCase();
-    var mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+    var mime =
+      ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
 
     var form = new FormData();
     form.append("file", { uri: uri, type: mime, name: filename });
@@ -251,7 +267,9 @@ export var upload = {
     var upRes = await fetch(sig.uploadUrl, { method: "POST", body: form });
     var upJson = await upRes.json();
     if (!upRes.ok || upJson.error) {
-      throw new Error((upJson.error && upJson.error.message) || "Upload failed");
+      throw new Error(
+        (upJson.error && upJson.error.message) || "Upload failed",
+      );
     }
 
     return {
@@ -307,7 +325,9 @@ export var users = {
 
 export var posts = {
   list: async function () {
-    var res = await fetchWithRetry(API_URL + API.posts, { headers: await authHeaders() });
+    var res = await fetchWithRetry(API_URL + API.posts, {
+      headers: await authHeaders(),
+    });
     return parseResponse(res);
   },
 
@@ -374,7 +394,11 @@ export var events = {
     if (!res.ok) {
       var text = await res.text();
       var err;
-      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      try {
+        err = JSON.parse(text);
+      } catch (e) {
+        err = {};
+      }
       throw new Error(err.error || "Failed to delete");
     }
     return { success: true };
@@ -395,9 +419,12 @@ export var events = {
 
 export var exhibitions = {
   list: async function (params) {
-    var res = await fetchWithRetry(API_URL + API.exhibitions + toQuery(params), {
-      headers: await authHeaders(),
-    });
+    var res = await fetchWithRetry(
+      API_URL + API.exhibitions + toQuery(params),
+      {
+        headers: await authHeaders(),
+      },
+    );
     return parseResponse(res);
   },
 
@@ -434,7 +461,11 @@ export var exhibitions = {
     if (!res.ok) {
       var text = await res.text();
       var err;
-      try { err = JSON.parse(text); } catch (e) { err = {}; }
+      try {
+        err = JSON.parse(text);
+      } catch (e) {
+        err = {};
+      }
       throw new Error(err.error || "Failed to delete");
     }
     return { success: true };
@@ -467,9 +498,12 @@ export var orders = {
 
 export var commissions = {
   list: async function (params) {
-    var res = await fetchWithRetry(API_URL + API.commissions + toQuery(params), {
-      headers: await authHeaders(),
-    });
+    var res = await fetchWithRetry(
+      API_URL + API.commissions + toQuery(params),
+      {
+        headers: await authHeaders(),
+      },
+    );
     return parseResponse(res);
   },
 
@@ -498,7 +532,6 @@ export var commissions = {
     return parseResponse(res);
   },
 };
-
 // ══════════════════════════════════════════════════════════════
 // Messages
 // ══════════════════════════════════════════════════════════════
@@ -507,6 +540,15 @@ export var msgs = {
   conversations: async function () {
     var res = await fetchWithRetry(API_URL + API.conversations, {
       headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  createConversation: async function (participantId) {
+    var res = await fetchWithRetry(API_URL + API.conversations, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ participantId: participantId }),
     });
     return parseResponse(res);
   },

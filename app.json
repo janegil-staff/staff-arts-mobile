@@ -5,8 +5,21 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "staffarts",
-    "splash": { "backgroundColor": "#0F1021" },
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.staffarts.app" },
-    "android": { "adaptiveIcon": { "backgroundColor": "#0F1021" }, "package": "com.staffarts.app" }
+    "splash": {
+      "backgroundColor": "#0F1021"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.staffarts.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F1021"
+      },
+      "package": "com.staffarts.app"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

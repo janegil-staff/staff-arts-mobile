@@ -46,6 +46,21 @@ var MEDIUMS = [
   "Mixed Media",
   "Other",
 ];
+var STYLES = [
+  "Abstract",
+  "Realism",
+  "Impressionism",
+  "Minimalism",
+  "Surrealism",
+  "Pop Art",
+  "Contemporary",
+  "Expressionism",
+  "Cubism",
+  "Street Art",
+  "Folk Art",
+  "Figurative",
+  "Conceptual",
+];
 var CURRENCIES = [
   { code: "USD", symbol: "$", label: "USD ($)" },
   { code: "EUR", symbol: "€", label: "EUR (€)" },
@@ -62,7 +77,6 @@ var UNITS = [
   { code: "in", label: "inches" },
   { code: "mm", label: "mm" },
 ];
-// Categories that commonly have depth
 var DEPTH_CATEGORIES = [
   "Sculpture",
   "Installation",
@@ -78,6 +92,7 @@ export default function UploadScreen({ navigation }) {
   var [desc, setDesc] = useState("");
   var [category, setCategory] = useState("");
   var [medium, setMedium] = useState("");
+  var [style, setStyle] = useState("");
   var [year, setYear] = useState("");
   var [dimHeight, setDimHeight] = useState("");
   var [dimWidth, setDimWidth] = useState("");
@@ -171,6 +186,7 @@ export default function UploadScreen({ navigation }) {
         images: uploadedUrls,
         category: category,
         medium: medium,
+        style: style,
         year: year ? parseInt(year) : undefined,
         dimensions: buildDimensions(),
         forSale: forSale,
@@ -185,6 +201,7 @@ export default function UploadScreen({ navigation }) {
       setDesc("");
       setCategory("");
       setMedium("");
+      setStyle("");
       setYear("");
       setDimHeight("");
       setDimWidth("");
@@ -356,6 +373,31 @@ export default function UploadScreen({ navigation }) {
               >
                 <Text style={[s.chipText, active && s.chipTextActive]}>
                   {m}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Style */}
+        <Text style={s.label}>Style</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: sp.sm, paddingBottom: sp.md }}
+        >
+          {STYLES.map(function (st) {
+            var active = style === st;
+            return (
+              <TouchableOpacity
+                key={st}
+                style={[s.chip, active && s.chipActive]}
+                onPress={function () {
+                  setStyle(active ? "" : st);
+                }}
+              >
+                <Text style={[s.chipText, active && s.chipTextActive]}>
+                  {st}
                 </Text>
               </TouchableOpacity>
             );
@@ -648,7 +690,6 @@ var s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border,
   },
-  // Dimensions
   dimRow: {
     flexDirection: "row",
     alignItems: "center",

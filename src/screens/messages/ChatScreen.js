@@ -8,48 +8,266 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { msgs } from "../../services/data";
 import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { format } from "date-fns";
-export default function Chat({ route }) {
-  var { conversationId } = route.params;
+
+// ── Inquiry Banner ──
+
+function InquiryBanner({ listing, onPress }) {
+  if (!listing) return null;
+  return (
+    <T
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: sp.md,
+        margin: sp.md,
+        marginBottom: 0,
+        padding: sp.sm,
+        backgroundColor: c.surface,
+        borderRadius: rad.lg,
+        borderWidth: 1,
+        borderColor: c.borderLight,
+      }}
+      onPress={onPress}
+    >
+      {listing.image ? (
+        <Image
+          source={{ uri: listing.image }}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: rad.sm,
+            backgroundColor: c.surfaceDim,
+          }}
+        />
+      ) : (
+        <View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: rad.sm,
+            backgroundColor: c.surfaceDim,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ fontSize: 20 }}>🖼️</Text>
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}
+          numberOfLines={1}
+        >
+          {listing.title}
+        </Text>
+        {listing.price > 0 ? (
+          <Text
+            style={{ fontSize: fs.xs, color: c.teal, fontWeight: fw.medium }}
+          >
+            {listing.price.toLocaleString("en-US", {
+              style: "currency",
+              currency: listing.currency || "NOK",
+              minimumFractionDigits: 0,
+            })}
+          </Text>
+        ) : (
+          <Text style={{ fontSize: fs.xs, color: c.textMuted }}>
+            Price on request
+          </Text>
+        )}
+      </View>
+      <Text style={{ fontSize: fs.xs, color: c.textMuted }}>→</Text>
+    </T>
+  );
+}
+
+// ── Main Screen ──
+
+export default function Chat({ route, navigation }) {
+  var params = route.params || {};
   var { user } = useAuth();
+  var [convId, setConvId] = useState(params.conversationId || null);
   var [data, sD] = useState([]);
   var [txt, sT] = useState("");
+  var [loading, sL] = useState(true);
+  var [sending, setSending] = useState(false);
   var ref = useRef();
-  useEffect(() => {
-    (async () => {
-      try {
-        sD(await msgs.list(conversationId));
-      } catch {}
-    })();
-  }, [conversationId]);
-  var send = async () => {
-    if (!txt.trim()) return;
+
+  // Listing info for inquiry banner
+  var listing = params.listingId
+    ? {
+        id: params.listingId,
+        title: params.listingTitle,
+        price: params.listingPrice,
+        currency: params.listingCurrency,
+        image: params.listingImage,
+      }
+    : null;
+
+  // Set header title
+  useEffect(
+    function () {
+      if (params.name) {
+        navigation.setOptions({ title: params.name });
+      }
+    },
+    [params.name],
+  );
+
+  // Initialize conversation and load messages
+  useEffect(
+    function () {
+      var cancelled = false;
+
+      (async function () {
+        try {
+          var activeConvId = convId;
+
+          // If no conversation exists, create one with the participant
+          if (!activeConvId && params.participantId) {
+            var conv = await msgs.createConversation(params.participantId);
+            if (cancelled) return;
+            activeConvId = conv._id;
+            setConvId(activeConvId);
+          }
+
+          if (!activeConvId) {
+            sL(false);
+            return;
+          }
+
+          // Load existing messages
+          var messages = await msgs.list(activeConvId);
+          if (cancelled) return;
+          sD(messages);
+
+          // Auto-send inquiry message if coming from artwork and no previous inquiry
+          if (listing && params.autoInquire !== false) {
+            var hasExistingInquiry = messages.some(function (m) {
+              return (
+                m.text &&
+                m.text.includes("[Inquiry]") &&
+                m.text.includes(listing.title)
+              );
+            });
+
+            if (!hasExistingInquiry) {
+              var inquiryText = "[Inquiry] " + listing.title;
+              if (listing.price > 0) {
+                inquiryText +=
+                  " — Listed at " +
+                  listing.price.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: listing.currency || "NOK",
+                    minimumFractionDigits: 0,
+                  });
+              }
+              inquiryText +=
+                "\n\nHi, I'm interested in this piece. Is it still available?";
+
+              var m = await msgs.send(activeConvId, inquiryText);
+              if (!cancelled) {
+                sD(function (prev) {
+                  return [...prev, m];
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.log("[Chat] Init error:", e.message);
+        }
+        if (!cancelled) sL(false);
+      })();
+
+      return function () {
+        cancelled = true;
+      };
+    },
+    [convId, params.participantId],
+  );
+
+  var send = async function () {
+    if (!txt.trim() || !convId || sending) return;
+    setSending(true);
     try {
-      var m = await msgs.send(conversationId, txt.trim());
-      sD((p) => [...p, m]);
+      var m = await msgs.send(convId, txt.trim());
+      sD(function (prev) {
+        return [...prev, m];
+      });
       sT("");
-      setTimeout(() => ref.current?.scrollToEnd(), 100);
-    } catch {}
+      setTimeout(function () {
+        ref.current?.scrollToEnd();
+      }, 100);
+    } catch (e) {
+      console.log("[Chat] Send error:", e.message);
+    }
+    setSending(false);
   };
+
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: c.bg,
+        }}
+      >
+        <ActivityIndicator color={c.teal} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={90}
     >
+      {/* Inquiry banner */}
+      {listing ? (
+        <InquiryBanner
+          listing={listing}
+          onPress={function () {
+            if (listing.id) {
+              navigation.push("ArtworkDetail", { id: listing.id });
+            }
+          }}
+        />
+      ) : null}
+
       <FlatList
         ref={ref}
         data={data}
-        keyExtractor={(i) => i._id}
+        keyExtractor={function (i) {
+          return i._id;
+        }}
         contentContainerStyle={{ padding: sp.md, paddingBottom: sp.md }}
-        onContentSizeChange={() =>
-          ref.current?.scrollToEnd({ animated: false })
+        onContentSizeChange={function () {
+          ref.current?.scrollToEnd({ animated: false });
+        }}
+        ListEmptyComponent={
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 60,
+            }}
+          >
+            <Text style={{ fontSize: fs.sm, color: c.textMuted }}>
+              No messages yet
+            </Text>
+          </View>
         }
-        renderItem={({ item: i }) => {
+        renderItem={function ({ item: i }) {
           var mine = i.senderId?._id === user?._id || i.senderId === user?._id;
           return (
             <View
@@ -79,12 +297,14 @@ export default function Chat({ route }) {
                   marginTop: sp.xs,
                 }}
               >
-                {format(new Date(i.createdAt), "HH:mm")}
+                {i.createdAt ? format(new Date(i.createdAt), "HH:mm") : ""}
               </Text>
             </View>
           );
         }}
       />
+
+      {/* Input */}
       <View
         style={{
           flexDirection: "row",
@@ -109,10 +329,11 @@ export default function Chat({ route }) {
           onChangeText={sT}
           placeholder="Message..."
           placeholderTextColor={c.textMuted}
+          editable={!!convId}
         />
         <T
           style={{
-            backgroundColor: c.teal,
+            backgroundColor: txt.trim() && convId ? c.teal : c.surfaceDim,
             borderRadius: rad.md,
             paddingHorizontal: sp.lg,
             justifyContent: "center",
@@ -123,8 +344,14 @@ export default function Chat({ route }) {
             elevation: 4,
           }}
           onPress={send}
+          disabled={!txt.trim() || !convId || sending}
         >
-          <Text style={{ color: c.textInverse, fontWeight: fw.semi }}>
+          <Text
+            style={{
+              color: txt.trim() && convId ? c.textInverse : c.textMuted,
+              fontWeight: fw.semi,
+            }}
+          >
             Send
           </Text>
         </T>

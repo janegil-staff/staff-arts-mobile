@@ -1,32 +1,159 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity as T,
   Image,
-  ActivityIndicator,
   StyleSheet,
+  RefreshControl,
+  Animated,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { posts } from "../../services/data";
 import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { formatDistanceToNow } from "date-fns";
 
+// ── Skeleton Shimmer ──
+
+function Skeleton({ width, height, style }) {
+  var anim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(function () {
+    var loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 0.7,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return function () { loop.stop(); };
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: width,
+          height: height,
+          backgroundColor: c.surfaceDim,
+          borderRadius: rad.md,
+          opacity: anim,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function PostSkeleton() {
+  return (
+    <View style={{ paddingVertical: sp.lg, paddingHorizontal: sp.lg, borderBottomWidth: 1, borderBottomColor: c.borderLight }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: sp.md, marginBottom: sp.md }}>
+        <Skeleton width={42} height={42} style={{ borderRadius: 21 }} />
+        <View style={{ flex: 1 }}>
+          <Skeleton width={120} height={14} />
+          <Skeleton width={80} height={12} style={{ marginTop: sp.xs }} />
+        </View>
+      </View>
+      <Skeleton width={"90%"} height={14} />
+      <Skeleton width={"70%"} height={14} style={{ marginTop: sp.xs }} />
+      <Skeleton width={"100%"} height={260} style={{ marginTop: sp.md, borderRadius: rad.md }} />
+    </View>
+  );
+}
+
+function FeedSkeleton() {
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      {/* Nav row skeleton */}
+      <View style={{ flexDirection: "row", gap: sp.sm, paddingHorizontal: sp.lg, paddingVertical: sp.md, borderBottomWidth: 1, borderBottomColor: c.borderLight }}>
+        {[1, 2, 3].map(function (i) {
+          return <Skeleton key={i} width={0} height={60} style={{ flex: 1, borderRadius: rad.md }} />;
+        })}
+      </View>
+      <PostSkeleton />
+      <PostSkeleton />
+      <PostSkeleton />
+    </View>
+  );
+}
+
+// ── Error State ──
+
+function ErrorState({ onRetry }) {
+  return (
+    <View style={{ alignItems: "center", paddingVertical: 60 }}>
+      <Text style={{ fontSize: 40, marginBottom: sp.md }}>😔</Text>
+      <Text
+        style={{
+          fontSize: fs.md,
+          color: c.textSecondary,
+          textAlign: "center",
+          marginBottom: sp.lg,
+          maxWidth: 260,
+        }}
+      >
+        Couldn't load the feed. Pull down to try again.
+      </Text>
+      <T
+        style={{
+          backgroundColor: c.teal,
+          paddingVertical: 12,
+          paddingHorizontal: 32,
+          borderRadius: rad.md,
+        }}
+        onPress={onRetry}
+      >
+        <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
+          Try Again
+        </Text>
+      </T>
+    </View>
+  );
+}
+
+// ── Main Screen ──
+
 export default function Feed({ navigation: n }) {
   var { ok } = useAuth();
   var [data, sD] = useState([]);
-  var [ld, sL] = useState(true);
+  var [initialLoad, setInitialLoad] = useState(true);
+  var [refreshing, setRefreshing] = useState(false);
+  var [error, setError] = useState(false);
 
-  useEffect(function () {
-    (async function () {
-      try {
-        var d = await posts.list();
-        sD(d.posts || []);
-      } catch (e) {}
-      sL(false);
-    })();
+  var load = useCallback(async function () {
+    try {
+      var d = await posts.list();
+      sD(d.posts || []);
+      setError(false);
+    } catch (e) {
+      console.log("Feed error:", e.message);
+      if (data.length === 0) setError(true);
+    }
+    setInitialLoad(false);
   }, []);
+
+  useFocusEffect(
+    useCallback(function () {
+      if (initialLoad) load();
+    }, [initialLoad, load]),
+  );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
   var onLike = async function (id, i) {
     try {
@@ -50,12 +177,8 @@ export default function Feed({ navigation: n }) {
     n.navigate("CreateShow");
   }
 
-  if (ld) {
-    return (
-      <View style={s.center}>
-        <ActivityIndicator color={c.teal} />
-      </View>
-    );
+  if (initialLoad) {
+    return <FeedSkeleton />;
   }
 
   return (
@@ -63,35 +186,34 @@ export default function Feed({ navigation: n }) {
       <FlatList
         style={{ flex: 1 }}
         data={data}
-        keyExtractor={function (i) {
-          return i._id;
-        }}
+        keyExtractor={function (i) { return i._id; }}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={c.teal}
+          />
+        }
         ListHeaderComponent={
           <View style={s.navRow}>
             <T
               style={s.navBtn}
-              onPress={function () {
-                n.navigate("Events");
-              }}
+              onPress={function () { n.navigate("Events"); }}
             >
               <Text style={s.navIcon}>📅</Text>
               <Text style={s.navLabel}>Events</Text>
             </T>
             <T
               style={s.navBtn}
-              onPress={function () {
-                n.navigate("Exhibitions");
-              }}
+              onPress={function () { n.navigate("Exhibitions"); }}
             >
               <Text style={s.navIcon}>🖼️</Text>
               <Text style={s.navLabel}>Exhibitions</Text>
             </T>
             <T
               style={s.navBtn}
-              onPress={function () {
-                n.navigate("Music");
-              }}
+              onPress={function () { n.navigate("Music"); }}
             >
               <Text style={s.navIcon}>🎵</Text>
               <Text style={s.navLabel}>Music</Text>
@@ -99,12 +221,33 @@ export default function Feed({ navigation: n }) {
           </View>
         }
         ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 60 }}>
-            <Text style={{ fontSize: 40, marginBottom: sp.md }}>🎭</Text>
-            <Text style={{ fontSize: fs.lg, color: c.textSecondary }}>
-              No posts yet
-            </Text>
-          </View>
+          error ? (
+            <ErrorState onRetry={load} />
+          ) : (
+            <View style={{ alignItems: "center", paddingVertical: 60 }}>
+              <Text style={{ fontSize: 48, marginBottom: sp.md }}>🎭</Text>
+              <Text
+                style={{
+                  fontSize: fs.lg,
+                  fontWeight: fw.medium,
+                  color: c.text,
+                  marginBottom: sp.xs,
+                }}
+              >
+                No posts yet
+              </Text>
+              <Text
+                style={{
+                  fontSize: fs.sm,
+                  color: c.textMuted,
+                  textAlign: "center",
+                  maxWidth: 260,
+                }}
+              >
+                Follow some artists to see their posts here
+              </Text>
+            </View>
+          )
         }
         renderItem={function ({ item: i, index: idx }) {
           var a = i.authorId || i.author;
@@ -113,8 +256,11 @@ export default function Feed({ navigation: n }) {
               <T
                 style={s.authorRow}
                 onPress={function () {
-                  if (a?.username)
-                    n.navigate("ArtistProfile", { username: a.username });
+                  if (a?.username) {
+                    n.push("ArtistProfile", { username: a.username });
+                  } else if (a?._id) {
+                    n.push("ArtistProfile", { id: a._id });
+                  }
                 }}
               >
                 {a?.avatar ? (
@@ -152,9 +298,11 @@ export default function Feed({ navigation: n }) {
                       marginTop: 2,
                     }}
                   >
-                    {formatDistanceToNow(new Date(i.createdAt), {
-                      addSuffix: true,
-                    })}
+                    {i.createdAt
+                      ? formatDistanceToNow(new Date(i.createdAt), {
+                          addSuffix: true,
+                        })
+                      : ""}
                   </Text>
                 </View>
               </T>
@@ -170,9 +318,7 @@ export default function Feed({ navigation: n }) {
 
               <View style={{ flexDirection: "row", gap: sp.xl }}>
                 <T
-                  onPress={function () {
-                    onLike(i._id, idx);
-                  }}
+                  onPress={function () { onLike(i._id, idx); }}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -221,13 +367,6 @@ export default function Feed({ navigation: n }) {
 }
 
 var s = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: c.bg,
-  },
-  // Quick nav row
   navRow: {
     flexDirection: "row",
     gap: sp.sm,
@@ -252,7 +391,6 @@ var s = StyleSheet.create({
     color: c.textSecondary,
     fontWeight: fw.medium,
   },
-  // Post
   post: {
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
@@ -290,7 +428,6 @@ var s = StyleSheet.create({
     backgroundColor: c.surfaceDim,
     marginBottom: sp.md,
   },
-  // Floating action button
   fab: {
     position: "absolute",
     bottom: 24,

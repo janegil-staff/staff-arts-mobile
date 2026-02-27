@@ -7,10 +7,10 @@ import {
   TouchableOpacity as T,
   StyleSheet as S,
   Dimensions,
-  ActivityIndicator,
   FlatList,
   Alert,
   Share,
+  Animated,
 } from "react-native";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { useAuth } from "../../store/authStore";
@@ -18,6 +18,235 @@ import { artworks } from "../../services/data";
 
 var W = Dimensions.get("window").width;
 var IMG_H = W * 1.15;
+
+// ── Skeleton Shimmer ──
+
+function Skeleton({ width, height, style }) {
+  var anim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(function () {
+    var loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 0.7,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return function () { loop.stop(); };
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: width,
+          height: height,
+          backgroundColor: c.surfaceDim,
+          borderRadius: rad.md,
+          opacity: anim,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function ArtworkSkeleton() {
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.bg }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Image skeleton */}
+      <Skeleton width={W} height={IMG_H} style={{ borderRadius: 0 }} />
+
+      {/* Title & meta card */}
+      <View style={s.card}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <Skeleton width={"65%"} height={24} />
+          <Skeleton width={70} height={24} style={{ borderRadius: rad.full }} />
+        </View>
+        <View style={{ flexDirection: "row", gap: sp.sm, marginTop: sp.md }}>
+          <Skeleton width={50} height={14} />
+          <Skeleton width={80} height={14} />
+          <Skeleton width={60} height={14} />
+        </View>
+
+        {/* Artist row skeleton */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: sp.md,
+            paddingVertical: sp.md,
+            marginTop: sp.md,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: c.borderLight,
+          }}
+        >
+          <Skeleton width={44} height={44} style={{ borderRadius: 22 }} />
+          <View style={{ flex: 1 }}>
+            <Skeleton width={120} height={16} />
+            <Skeleton width={80} height={12} style={{ marginTop: sp.xs }} />
+          </View>
+        </View>
+
+        {/* Price skeleton */}
+        <View style={{ marginTop: sp.lg }}>
+          <Skeleton width={50} height={10} />
+          <Skeleton width={100} height={24} style={{ marginTop: sp.xs }} />
+        </View>
+
+        {/* Button skeleton */}
+        <Skeleton width={"100%"} height={56} style={{ marginTop: sp.lg, borderRadius: rad.md }} />
+      </View>
+
+      {/* Description card skeleton */}
+      <View style={s.card}>
+        <Skeleton width={120} height={10} style={{ marginBottom: sp.md }} />
+        <Skeleton width={"100%"} height={14} />
+        <Skeleton width={"90%"} height={14} style={{ marginTop: sp.sm }} />
+        <Skeleton width={"75%"} height={14} style={{ marginTop: sp.sm }} />
+      </View>
+
+      {/* Details card skeleton */}
+      <View style={s.card}>
+        <Skeleton width={60} height={10} style={{ marginBottom: sp.md }} />
+        {[1, 2, 3, 4].map(function (i) {
+          return (
+            <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}>
+              <Skeleton width={80} height={14} />
+              <Skeleton width={100} height={14} />
+            </View>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Error State ──
+
+function ErrorState({ message, onRetry, onBack }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: c.bg,
+        paddingHorizontal: sp.xl,
+      }}
+    >
+      <Text style={{ fontSize: 48, marginBottom: sp.md }}>😔</Text>
+      <Text
+        style={{
+          fontSize: fs.md,
+          color: c.textSecondary,
+          textAlign: "center",
+          marginBottom: sp.lg,
+          maxWidth: 280,
+        }}
+      >
+        {message}
+      </Text>
+      <View style={{ flexDirection: "row", gap: sp.sm }}>
+        {onBack ? (
+          <T
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: rad.md,
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+            onPress={onBack}
+          >
+            <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}>
+              Go Back
+            </Text>
+          </T>
+        ) : null}
+        <T
+          style={{
+            backgroundColor: c.teal,
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: rad.md,
+          }}
+          onPress={onRetry}
+        >
+          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
+            Try Again
+          </Text>
+        </T>
+      </View>
+    </View>
+  );
+}
+
+// ── Not Found State ──
+
+function NotFoundState({ onBack }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: c.bg,
+        paddingHorizontal: sp.xl,
+      }}
+    >
+      <Text style={{ fontSize: 48, marginBottom: sp.md }}>🖼️</Text>
+      <Text
+        style={{
+          fontSize: fs.lg,
+          fontWeight: fw.medium,
+          color: c.text,
+          marginBottom: sp.xs,
+        }}
+      >
+        Artwork not found
+      </Text>
+      <Text
+        style={{
+          fontSize: fs.sm,
+          color: c.textMuted,
+          textAlign: "center",
+          maxWidth: 260,
+          marginBottom: sp.lg,
+        }}
+      >
+        This piece may have been removed or is no longer available
+      </Text>
+      {onBack ? (
+        <T
+          style={{
+            backgroundColor: c.teal,
+            paddingVertical: 12,
+            paddingHorizontal: 32,
+            borderRadius: rad.md,
+          }}
+          onPress={onBack}
+        >
+          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
+            Go Back
+          </Text>
+        </T>
+      ) : null}
+    </View>
+  );
+}
 
 // ── Image Slider ──
 
@@ -264,32 +493,36 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   var { user: currentUser } = useAuth();
   var [artwork, setArtwork] = useState(null);
   var [loading, setLoading] = useState(true);
+  var [error, setError] = useState(null);
   var [liked, setLiked] = useState(false);
   var [deleting, setDeleting] = useState(false);
 
-  useEffect(
-    function () {
-      setLoading(true);
-      setArtwork(null);
-      (async function () {
-        try {
-          var data = await artworks.get(id);
-          setArtwork(data);
-          if (currentUser && data.likes) {
-            setLiked(
-              data.likes.some(function (uid) {
-                return uid === currentUser._id || uid._id === currentUser._id;
-              }),
-            );
-          }
-        } catch (e) {
-          console.log("Failed to load artwork:", e.message);
+  function fetchArtwork() {
+    setLoading(true);
+    setError(null);
+    setArtwork(null);
+    (async function () {
+      try {
+        var data = await artworks.get(id);
+        setArtwork(data);
+        if (currentUser && data.likes) {
+          setLiked(
+            data.likes.some(function (uid) {
+              return uid === currentUser._id || uid._id === currentUser._id;
+            }),
+          );
         }
-        setLoading(false);
-      })();
-    },
-    [id],
-  );
+      } catch (e) {
+        console.log("Failed to load artwork:", e.message);
+        setError("Couldn't load this artwork. Check your connection and try again.");
+      }
+      setLoading(false);
+    })();
+  }
+
+  useEffect(function () {
+    fetchArtwork();
+  }, [id]);
 
   function navigateToProfile(profileObj) {
     if (!profileObj) return;
@@ -342,30 +575,42 @@ export default function ArtworkDetailScreen({ route, navigation }) {
 
   function handleInquire() {
     var ar = artwork.artist;
-    navigation.navigate("Chat", {
-      sellerId: ar?._id,
-      listingId: artwork._id,
-      listingTitle: artwork.title,
-      listingPrice: artwork.price,
-      listingImage: artwork.images?.[0]?.url,
+    navigation.navigate("Messages", {
+      screen: "Chat",
+      params: {
+        conversationId: null,
+        participantId: ar?._id,
+        name: ar?.displayName || ar?.name,
+        listingId: artwork._id,
+        listingTitle: artwork.title,
+        listingPrice: artwork.price,
+        listingCurrency: artwork.currency,
+        listingImage: artwork.images?.[0]?.url,
+      },
     });
   }
 
-  // ── Loading / Error states ──
+  // ── Loading / Error / Not Found states ──
 
   if (loading) {
+    return <ArtworkSkeleton />;
+  }
+
+  if (error) {
     return (
-      <View style={s.ctr}>
-        <ActivityIndicator color={c.teal} />
-      </View>
+      <ErrorState
+        message={error}
+        onRetry={fetchArtwork}
+        onBack={function () { navigation.goBack(); }}
+      />
     );
   }
 
   if (!artwork) {
     return (
-      <View style={s.ctr}>
-        <Text style={{ color: c.textMuted }}>Not found</Text>
-      </View>
+      <NotFoundState
+        onBack={function () { navigation.goBack(); }}
+      />
     );
   }
 
@@ -374,7 +619,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   var ar = artwork.artist;
   var d = artwork.dimensions;
   var dimStr = formatDimensions(d);
-console.log("[ArtworkDetail] artist object:", JSON.stringify(ar));
+
   var isOwner = false;
   if (currentUser && ar) {
     var artistId = String(ar._id || ar);
@@ -620,7 +865,9 @@ console.log("[ArtworkDetail] artist object:", JSON.stringify(ar));
             disabled={deleting}
           >
             {deleting ? (
-              <ActivityIndicator color={c.textInverse} />
+              <View style={{ height: 22 }}>
+                <Text style={[s.btnText, { opacity: 0.6 }]}>Deleting...</Text>
+              </View>
             ) : (
               <Text style={s.btnText}>Delete Artwork</Text>
             )}
