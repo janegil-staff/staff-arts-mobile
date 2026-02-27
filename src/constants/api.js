@@ -11,6 +11,7 @@ export var API = {
   artworkLike: (id) => `/api/artworks/${id}/like`,
   users: "/api/users",
   userProfile: (u) => `/api/users/${u}`,
+  userById: (id) => `/api/users/id/${id}`,
   userFollow: (id) => `/api/mobile/users/${id}/follow`,
   posts: "/api/mobile/posts",
   postLike: (id) => `/api/mobile/posts/${id}/like`,

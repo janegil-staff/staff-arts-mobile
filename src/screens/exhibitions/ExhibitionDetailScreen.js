@@ -172,6 +172,15 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
     }
   }
 
+  function navigateToProfile(profileObj) {
+    if (!profileObj) return;
+    if (profileObj.username) {
+      navigation.push("ArtistProfile", { username: profileObj.username });
+    } else if (profileObj._id) {
+      navigation.push("ArtistProfile", { id: profileObj._id });
+    }
+  }
+
   // ── Loading / Error ──
 
   if (loading) {
@@ -281,7 +290,9 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
         <View style={{ gap: sp.sm, marginTop: sp.md }}>
           {dateStr ? <Row label="Dates" value={dateStr} /> : null}
           {ex.location ? <Row label="Location" value={ex.location} /> : null}
-          {ex.isVirtual ? <Row label="Format" value="Virtual / Online" /> : null}
+          {ex.isVirtual ? (
+            <Row label="Format" value="Virtual / Online" />
+          ) : null}
           {ex.virtualUrl ? <Row label="Link" value={ex.virtualUrl} /> : null}
           {ex.isFree ? (
             <Row label="Admission" value="Free" />
@@ -298,11 +309,7 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
           <T
             style={s.organizerRow}
             onPress={function () {
-              if (org.username) {
-                navigation.navigate("ArtistProfile", {
-                  username: org.username,
-                });
-              }
+              navigateToProfile(org);
             }}
           >
             {org.avatar ? (
@@ -407,11 +414,7 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
                   key={artistId}
                   artist={artistObj}
                   onPress={function () {
-                    if (artistObj.username) {
-                      navigation.navigate("ArtistProfile", {
-                        username: artistObj.username,
-                      });
-                    }
+                    navigateToProfile(artistObj);
                   }}
                 />
               );
@@ -437,7 +440,7 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
                   key={artId}
                   artwork={artObj}
                   onPress={function () {
-                    navigation.navigate("ArtworkDetail", { id: artId });
+                    navigation.push("ArtworkDetail", { id: artId });
                   }}
                 />
               );
@@ -468,7 +471,13 @@ export default function ExhibitionDetailScreen({ route, navigation }) {
 
       {/* ── Owner Actions ── */}
       {isOwner ? (
-        <View style={{ marginHorizontal: sp.md, marginTop: sp.md, marginBottom: sp.lg }}>
+        <View
+          style={{
+            marginHorizontal: sp.md,
+            marginTop: sp.md,
+            marginBottom: sp.lg,
+          }}
+        >
           <T
             style={{
               backgroundColor: "#2a1515",

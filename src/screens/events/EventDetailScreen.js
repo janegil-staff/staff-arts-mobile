@@ -126,6 +126,15 @@ export default function EventDetailScreen({ route, navigation }) {
     }
   }
 
+  function navigateToProfile(profileObj) {
+    if (!profileObj) return;
+    if (profileObj.username) {
+      navigation.push("ArtistProfile", { username: profileObj.username });
+    } else if (profileObj._id) {
+      navigation.push("ArtistProfile", { id: profileObj._id });
+    }
+  }
+
   // ── Loading / Error ──
 
   if (loading) {
@@ -229,9 +238,7 @@ export default function EventDetailScreen({ route, navigation }) {
         {/* Event/Music type badge */}
         {ev.type ? (
           <View style={s.typeBadge}>
-            <Text style={s.typeBadgeText}>
-              {ev.type.replace("_", " ")}
-            </Text>
+            <Text style={s.typeBadgeText}>{ev.type.replace("_", " ")}</Text>
           </View>
         ) : null}
 
@@ -261,11 +268,7 @@ export default function EventDetailScreen({ route, navigation }) {
           <T
             style={s.organizerRow}
             onPress={function () {
-              if (org.username) {
-                navigation.navigate("ArtistProfile", {
-                  username: org.username,
-                });
-              }
+              navigateToProfile(org);
             }}
           >
             {org.avatar ? (
@@ -376,7 +379,13 @@ export default function EventDetailScreen({ route, navigation }) {
 
       {/* ── Owner Actions ── */}
       {isOwner ? (
-        <View style={{ marginHorizontal: sp.md, marginTop: sp.md, marginBottom: sp.lg }}>
+        <View
+          style={{
+            marginHorizontal: sp.md,
+            marginTop: sp.md,
+            marginBottom: sp.lg,
+          }}
+        >
           <T
             style={{
               backgroundColor: "#2a1515",

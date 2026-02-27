@@ -268,8 +268,25 @@ export var upload = {
 // ══════════════════════════════════════════════════════════════
 
 export var users = {
+  // Fetch by username — uses /api/users/:username
   get: async function (username) {
     var res = await fetchWithRetry(API_URL + API.userProfile(username), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  // Fetch by username (explicit alias)
+  getByUsername: async function (username) {
+    var res = await fetchWithRetry(API_URL + API.userProfile(username), {
+      headers: await authHeaders(),
+    });
+    return parseResponse(res);
+  },
+
+  // Fetch by MongoDB _id — uses /api/users/id/:id
+  getById: async function (id) {
+    var res = await fetchWithRetry(API_URL + API.userById(id), {
       headers: await authHeaders(),
     });
     return parseResponse(res);

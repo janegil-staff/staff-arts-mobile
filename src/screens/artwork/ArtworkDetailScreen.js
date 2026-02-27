@@ -27,7 +27,9 @@ function ImageSlider({ images }) {
 
   if (!images?.length) {
     return (
-      <View style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }} />
+      <View
+        style={{ width: W, height: IMG_H, backgroundColor: c.surfaceDim }}
+      />
     );
   }
 
@@ -265,24 +267,38 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   var [liked, setLiked] = useState(false);
   var [deleting, setDeleting] = useState(false);
 
-  useEffect(function () {
-    (async function () {
-      try {
-        var data = await artworks.get(id);
-        setArtwork(data);
-        if (currentUser && data.likes) {
-          setLiked(
-            data.likes.some(function (uid) {
-              return uid === currentUser._id || uid._id === currentUser._id;
-            })
-          );
+  useEffect(
+    function () {
+      setLoading(true);
+      setArtwork(null);
+      (async function () {
+        try {
+          var data = await artworks.get(id);
+          setArtwork(data);
+          if (currentUser && data.likes) {
+            setLiked(
+              data.likes.some(function (uid) {
+                return uid === currentUser._id || uid._id === currentUser._id;
+              }),
+            );
+          }
+        } catch (e) {
+          console.log("Failed to load artwork:", e.message);
         }
-      } catch (e) {
-        console.log("Failed to load artwork:", e.message);
-      }
-      setLoading(false);
-    })();
-  }, [id]);
+        setLoading(false);
+      })();
+    },
+    [id],
+  );
+
+  function navigateToProfile(profileObj) {
+    if (!profileObj) return;
+    if (profileObj.username) {
+      navigation.push("ArtistProfile", { username: profileObj.username });
+    } else if (profileObj._id) {
+      navigation.push("ArtistProfile", { id: profileObj._id });
+    }
+  }
 
   async function handleLike() {
     try {
@@ -291,7 +307,8 @@ export default function ArtworkDetailScreen({ route, navigation }) {
       setArtwork(function (prev) {
         if (!prev) return prev;
         return Object.assign({}, prev, {
-          likesCount: data.likesCount !== undefined ? data.likesCount : prev.likesCount,
+          likesCount:
+            data.likesCount !== undefined ? data.likesCount : prev.likesCount,
         });
       });
     } catch (e) {
@@ -324,9 +341,9 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   }
 
   function handleInquire() {
-    // Navigate to chat or inquiry flow
+    var ar = artwork.artist;
     navigation.navigate("Chat", {
-      sellerId: artwork.artist?._id,
+      sellerId: ar?._id,
       listingId: artwork._id,
       listingTitle: artwork.title,
       listingPrice: artwork.price,
@@ -357,7 +374,13 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   var ar = artwork.artist;
   var d = artwork.dimensions;
   var dimStr = formatDimensions(d);
-  var isOwner = currentUser && ar && (ar._id === currentUser._id);
+console.log("[ArtworkDetail] artist object:", JSON.stringify(ar));
+  var isOwner = false;
+  if (currentUser && ar) {
+    var artistId = String(ar._id || ar);
+    var userId = String(currentUser._id || currentUser.id);
+    isOwner = artistId === userId;
+  }
 
   var created = artwork.createdAt
     ? new Date(artwork.createdAt).toLocaleDateString("en-US", {
@@ -483,11 +506,11 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         )}
 
         {/* ── Artist Row ── */}
-        {ar && (
+        {ar && typeof ar === "object" && (
           <T
             style={s.aRow}
             onPress={function () {
-              navigation.navigate("ArtistProfile", { username: ar.username });
+              navigateToProfile(ar);
             }}
           >
             {ar.avatar ? (
@@ -577,7 +600,9 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           </View>
           <View style={{ flexDirection: "row", gap: sp.sm }}>
             <T style={s.iconBtn} onPress={handleLike}>
-              <Text style={{ fontSize: 20, color: liked ? c.rose : c.textMuted }}>
+              <Text
+                style={{ fontSize: 20, color: liked ? c.rose : c.textMuted }}
+              >
                 {liked ? "♥" : "♡"}
               </Text>
             </T>
@@ -621,7 +646,8 @@ export default function ArtworkDetailScreen({ route, navigation }) {
               {artwork.description}
             </Text>
           ) : null}
-          {artwork.aiDescription && artwork.aiDescription !== artwork.description ? (
+          {artwork.aiDescription &&
+          artwork.aiDescription !== artwork.description ? (
             <View style={{ marginTop: artwork.description ? sp.md : 0 }}>
               <Text
                 style={{
@@ -651,9 +677,15 @@ export default function ArtworkDetailScreen({ route, navigation }) {
       {/* ── Artwork Details ── */}
       <Section label="DETAILS">
         <View style={{ gap: 2 }}>
-          {artwork.medium ? <Row l="Medium" v={artwork.medium.replace(/_/g, " ")} /> : null}
-          {artwork.style ? <Row l="Style" v={artwork.style.replace(/_/g, " ")} /> : null}
-          {artwork.subject ? <Row l="Subject" v={artwork.subject.replace(/_/g, " ")} /> : null}
+          {artwork.medium ? (
+            <Row l="Medium" v={artwork.medium.replace(/_/g, " ")} />
+          ) : null}
+          {artwork.style ? (
+            <Row l="Style" v={artwork.style.replace(/_/g, " ")} />
+          ) : null}
+          {artwork.subject ? (
+            <Row l="Subject" v={artwork.subject.replace(/_/g, " ")} />
+          ) : null}
           {artwork.mood ? <Row l="Mood" v={artwork.mood} /> : null}
           {dimStr ? <Row l="Dimensions" v={dimStr} /> : null}
           {artwork.year ? <Row l="Year" v={String(artwork.year)} /> : null}
@@ -662,7 +694,9 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           {artwork.isPrint ? <Row l="Print" v="Yes" /> : null}
           {artwork.isDigital ? <Row l="Digital" v="Yes" /> : null}
           {artwork.currency ? <Row l="Currency" v={artwork.currency} /> : null}
-          {artwork.shippingInfo ? <Row l="Shipping" v={artwork.shippingInfo} /> : null}
+          {artwork.shippingInfo ? (
+            <Row l="Shipping" v={artwork.shippingInfo} />
+          ) : null}
         </View>
       </Section>
 
@@ -739,7 +773,12 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
             {artwork.aiTags.map(function (tag) {
               return (
-                <Tag key={tag} label={tag} color={c.textMuted} bg={c.surfaceDim} />
+                <Tag
+                  key={tag}
+                  label={tag}
+                  color={c.textMuted}
+                  bg={c.surfaceDim}
+                />
               );
             })}
           </View>
