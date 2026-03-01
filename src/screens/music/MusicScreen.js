@@ -8,11 +8,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { music } from "../../services/data";
+import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
-export default function MusicScreen({ navigation: n }) {
+
+export default function MusicScreen({ navigation }) {
+  var { user: currentUser } = useAuth();
   var [data, sD] = useState([]);
   var [ld, sL] = useState(true);
   var [playing, sP] = useState(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -22,6 +26,22 @@ export default function MusicScreen({ navigation: n }) {
       sL(false);
     })();
   }, []);
+
+  function navigateToProfile(profileObj) {
+    if (!profileObj) return;
+    var profileId = String(profileObj._id || profileObj);
+    var myId = String(currentUser?._id || currentUser?.id || "");
+    if (myId && profileId === myId) {
+      navigation.navigate("Tabs", { screen: "Profile" });
+      return;
+    }
+    if (profileObj.username) {
+      navigation.push("ArtistProfile", { username: profileObj.username });
+    } else if (profileObj._id) {
+      navigation.push("ArtistProfile", { id: profileObj._id });
+    }
+  }
+
   if (ld)
     return (
       <View
@@ -35,6 +55,7 @@ export default function MusicScreen({ navigation: n }) {
         <ActivityIndicator color={c.teal} />
       </View>
     );
+
   return (
     <FlatList
       style={{ flex: 1, backgroundColor: c.bg }}
@@ -112,11 +133,16 @@ export default function MusicScreen({ navigation: n }) {
             >
               {i.title}
             </Text>
-            <Text
-              style={{ fontSize: fs.sm, color: c.textSecondary, marginTop: 2 }}
+            <T
+              onPress={() => navigateToProfile(i.artistId)}
+              activeOpacity={0.7}
             >
-              {i.artistId?.displayName}
-            </Text>
+              <Text
+                style={{ fontSize: fs.sm, color: c.textSecondary, marginTop: 2 }}
+              >
+                {i.artistId?.displayName}
+              </Text>
+            </T>
             {i.genre?.length > 0 && (
               <Text
                 style={{ fontSize: fs.xs, color: c.textMuted, marginTop: 2 }}

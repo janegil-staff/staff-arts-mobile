@@ -40,9 +40,7 @@ function Skeleton({ width, height, style }) {
       ]),
     );
     loop.start();
-    return function () {
-      loop.stop();
-    };
+    return function () { loop.stop(); };
   }, []);
 
   return (
@@ -109,11 +107,7 @@ function ArtworkSkeleton() {
         </View>
 
         {/* Button skeleton */}
-        <Skeleton
-          width={"100%"}
-          height={56}
-          style={{ marginTop: sp.lg, borderRadius: rad.md }}
-        />
+        <Skeleton width={"100%"} height={56} style={{ marginTop: sp.lg, borderRadius: rad.md }} />
       </View>
 
       {/* Description card skeleton */}
@@ -129,14 +123,7 @@ function ArtworkSkeleton() {
         <Skeleton width={60} height={10} style={{ marginBottom: sp.md }} />
         {[1, 2, 3, 4].map(function (i) {
           return (
-            <View
-              key={i}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingVertical: 6,
-              }}
-            >
+            <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}>
               <Skeleton width={80} height={14} />
               <Skeleton width={100} height={14} />
             </View>
@@ -184,9 +171,7 @@ function ErrorState({ message, onRetry, onBack }) {
             }}
             onPress={onBack}
           >
-            <Text
-              style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}
-            >
+            <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}>
               Go Back
             </Text>
           </T>
@@ -200,13 +185,7 @@ function ErrorState({ message, onRetry, onBack }) {
           }}
           onPress={onRetry}
         >
-          <Text
-            style={{
-              fontSize: fs.sm,
-              fontWeight: fw.semi,
-              color: c.textInverse,
-            }}
-          >
+          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
             Try Again
           </Text>
         </T>
@@ -260,13 +239,7 @@ function NotFoundState({ onBack }) {
           }}
           onPress={onBack}
         >
-          <Text
-            style={{
-              fontSize: fs.sm,
-              fontWeight: fw.semi,
-              color: c.textInverse,
-            }}
-          >
+          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
             Go Back
           </Text>
         </T>
@@ -541,20 +514,15 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         }
       } catch (e) {
         console.log("Failed to load artwork:", e.message);
-        setError(
-          "Couldn't load this artwork. Check your connection and try again.",
-        );
+        setError("Couldn't load this artwork. Check your connection and try again.");
       }
       setLoading(false);
     })();
   }
 
-  useEffect(
-    function () {
-      fetchArtwork();
-    },
-    [id],
-  );
+  useEffect(function () {
+    fetchArtwork();
+  }, [id]);
 
   function navigateToProfile(profileObj) {
     if (!profileObj) return;
@@ -642,9 +610,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
       <ErrorState
         message={error}
         onRetry={fetchArtwork}
-        onBack={function () {
-          navigation.goBack();
-        }}
+        onBack={function () { navigation.goBack(); }}
       />
     );
   }
@@ -652,9 +618,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   if (!artwork) {
     return (
       <NotFoundState
-        onBack={function () {
-          navigation.goBack();
-        }}
+        onBack={function () { navigation.goBack(); }}
       />
     );
   }

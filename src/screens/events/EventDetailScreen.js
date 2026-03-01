@@ -128,6 +128,12 @@ export default function EventDetailScreen({ route, navigation }) {
 
   function navigateToProfile(profileObj) {
     if (!profileObj) return;
+    var profileId = String(profileObj._id || profileObj);
+    var myId = String(currentUser?._id || currentUser?.id || "");
+    if (myId && profileId === myId) {
+      navigation.navigate("Tabs", { screen: "Profile" });
+      return;
+    }
     if (profileObj.username) {
       navigation.push("ArtistProfile", { username: profileObj.username });
     } else if (profileObj._id) {
