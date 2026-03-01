@@ -312,7 +312,7 @@ export default function HomeScreen({ navigation }) {
       >
         <Text style={{ fontSize: fs.sm, color: c.textMuted }}>{greeting},</Text>
         <Text style={{ fontSize: fs.xxl, fontWeight: fw.light, color: c.text }}>
-          {user && user.displayName ? user.displayName.split(" ")[0] : "there"}
+          {user && user.name ? user.name.split(" ")[0] : "there"}
         </Text>
       </View>
 
@@ -479,14 +479,15 @@ export default function HomeScreen({ navigation }) {
                   flexDirection: "row",
                   flexWrap: "wrap",
                   paddingHorizontal: sp.lg,
-                  gap: sp.sm,
+                  gap: sp.xs,
                 }}
               >
                 {rec.slice(0, 6).map(function (item) {
+                  var colW = (W - sp.lg * 2 - sp.xs * 2) / 3;
                   return (
                     <TouchableOpacity
                       key={item._id}
-                      style={{ width: (W - sp.lg * 2 - sp.sm * 2) / 3 }}
+                      style={{ width: colW }}
                       onPress={function () {
                         navigation.navigate("ArtworkDetail", { id: item._id });
                       }}
@@ -494,7 +495,7 @@ export default function HomeScreen({ navigation }) {
                       <Image
                         source={{ uri: item.images?.[0]?.url }}
                         style={{
-                          width: "100%",
+                          width: colW,
                           aspectRatio: 0.8,
                           borderRadius: rad.sm,
                           backgroundColor: c.surfaceDim,
