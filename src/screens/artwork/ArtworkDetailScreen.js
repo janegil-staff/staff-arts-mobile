@@ -40,7 +40,9 @@ function Skeleton({ width, height, style }) {
       ]),
     );
     loop.start();
-    return function () { loop.stop(); };
+    return function () {
+      loop.stop();
+    };
   }, []);
 
   return (
@@ -65,7 +67,10 @@ function ArtworkSkeleton() {
       style={{ flex: 1, backgroundColor: c.bg }}
       showsVerticalScrollIndicator={false}
     >
+      {/* Image skeleton */}
       <Skeleton width={W} height={IMG_H} style={{ borderRadius: 0 }} />
+
+      {/* Title & meta card */}
       <View style={s.card}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Skeleton width={"65%"} height={24} />
@@ -76,6 +81,8 @@ function ArtworkSkeleton() {
           <Skeleton width={80} height={14} />
           <Skeleton width={60} height={14} />
         </View>
+
+        {/* Artist row skeleton */}
         <View
           style={{
             flexDirection: "row",
@@ -94,23 +101,42 @@ function ArtworkSkeleton() {
             <Skeleton width={80} height={12} style={{ marginTop: sp.xs }} />
           </View>
         </View>
+
+        {/* Price skeleton */}
         <View style={{ marginTop: sp.lg }}>
           <Skeleton width={50} height={10} />
           <Skeleton width={100} height={24} style={{ marginTop: sp.xs }} />
         </View>
-        <Skeleton width={"100%"} height={56} style={{ marginTop: sp.lg, borderRadius: rad.md }} />
+
+        {/* Button skeleton */}
+        <Skeleton
+          width={"100%"}
+          height={56}
+          style={{ marginTop: sp.lg, borderRadius: rad.md }}
+        />
       </View>
+
+      {/* Description card skeleton */}
       <View style={s.card}>
         <Skeleton width={120} height={10} style={{ marginBottom: sp.md }} />
         <Skeleton width={"100%"} height={14} />
         <Skeleton width={"90%"} height={14} style={{ marginTop: sp.sm }} />
         <Skeleton width={"75%"} height={14} style={{ marginTop: sp.sm }} />
       </View>
+
+      {/* Details card skeleton */}
       <View style={s.card}>
         <Skeleton width={60} height={10} style={{ marginBottom: sp.md }} />
         {[1, 2, 3, 4].map(function (i) {
           return (
-            <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}>
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: 6,
+              }}
+            >
               <Skeleton width={80} height={14} />
               <Skeleton width={100} height={14} />
             </View>
@@ -120,6 +146,8 @@ function ArtworkSkeleton() {
     </ScrollView>
   );
 }
+
+// ── Error State ──
 
 function ErrorState({ message, onRetry, onBack }) {
   return (
@@ -156,7 +184,9 @@ function ErrorState({ message, onRetry, onBack }) {
             }}
             onPress={onBack}
           >
-            <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}>
+            <Text
+              style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.text }}
+            >
               Go Back
             </Text>
           </T>
@@ -170,7 +200,13 @@ function ErrorState({ message, onRetry, onBack }) {
           }}
           onPress={onRetry}
         >
-          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
+          <Text
+            style={{
+              fontSize: fs.sm,
+              fontWeight: fw.semi,
+              color: c.textInverse,
+            }}
+          >
             Try Again
           </Text>
         </T>
@@ -178,6 +214,8 @@ function ErrorState({ message, onRetry, onBack }) {
     </View>
   );
 }
+
+// ── Not Found State ──
 
 function NotFoundState({ onBack }) {
   return (
@@ -222,7 +260,13 @@ function NotFoundState({ onBack }) {
           }}
           onPress={onBack}
         >
-          <Text style={{ fontSize: fs.sm, fontWeight: fw.semi, color: c.textInverse }}>
+          <Text
+            style={{
+              fontSize: fs.sm,
+              fontWeight: fw.semi,
+              color: c.textInverse,
+            }}
+          >
             Go Back
           </Text>
         </T>
@@ -230,6 +274,8 @@ function NotFoundState({ onBack }) {
     </View>
   );
 }
+
+// ── Image Slider ──
 
 function ImageSlider({ images }) {
   var [idx, setIdx] = useState(0);
@@ -319,6 +365,8 @@ var sl = S.create({
   },
   counterText: { color: "#fff", fontSize: fs.xs, fontWeight: fw.medium },
 });
+
+// ── Reusable Components ──
 
 function StatusBadge({ status }) {
   var colors = {
@@ -493,18 +541,32 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         }
       } catch (e) {
         console.log("Failed to load artwork:", e.message);
-        setError("Couldn't load this artwork. Check your connection and try again.");
+        setError(
+          "Couldn't load this artwork. Check your connection and try again.",
+        );
       }
       setLoading(false);
     })();
   }
 
-  useEffect(function () {
-    fetchArtwork();
-  }, [id]);
+  useEffect(
+    function () {
+      fetchArtwork();
+    },
+    [id],
+  );
 
   function navigateToProfile(profileObj) {
     if (!profileObj) return;
+    var profileId = String(profileObj._id || profileObj);
+    var myId = String(currentUser?._id || currentUser?.id || "");
+
+    // If it's the current user, go to their own profile tab
+    if (myId && profileId === myId) {
+      navigation.navigate("Tabs", { screen: "Profile" });
+      return;
+    }
+
     if (profileObj.username) {
       navigation.push("ArtistProfile", { username: profileObj.username });
     } else if (profileObj._id) {
@@ -552,20 +614,24 @@ export default function ArtworkDetailScreen({ route, navigation }) {
     Share.share({ message: 'Check out "' + artwork.title + '"' });
   }
 
-  // ── FIXED: Navigate directly to Chat at root level ──
   function handleInquire() {
     var ar = artwork.artist;
-    navigation.navigate("Chat", {
-      conversationId: null,
-      participantId: ar?._id,
-      name: ar?.displayName || ar?.name,
-      listingId: artwork._id,
-      listingTitle: artwork.title,
-      listingPrice: artwork.price,
-      listingCurrency: artwork.currency,
-      listingImage: artwork.images?.[0]?.url,
+    navigation.navigate("Messages", {
+      screen: "Chat",
+      params: {
+        conversationId: null,
+        participantId: ar?._id,
+        name: ar?.displayName || ar?.name,
+        listingId: artwork._id,
+        listingTitle: artwork.title,
+        listingPrice: artwork.price,
+        listingCurrency: artwork.currency,
+        listingImage: artwork.images?.[0]?.url,
+      },
     });
   }
+
+  // ── Loading / Error / Not Found states ──
 
   if (loading) {
     return <ArtworkSkeleton />;
@@ -576,7 +642,9 @@ export default function ArtworkDetailScreen({ route, navigation }) {
       <ErrorState
         message={error}
         onRetry={fetchArtwork}
-        onBack={function () { navigation.goBack(); }}
+        onBack={function () {
+          navigation.goBack();
+        }}
       />
     );
   }
@@ -584,10 +652,14 @@ export default function ArtworkDetailScreen({ route, navigation }) {
   if (!artwork) {
     return (
       <NotFoundState
-        onBack={function () { navigation.goBack(); }}
+        onBack={function () {
+          navigation.goBack();
+        }}
       />
     );
   }
+
+  // ── Derived data ──
 
   var ar = artwork.artist;
   var d = artwork.dimensions;
@@ -628,6 +700,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
     >
       <ImageSlider images={artwork.images} />
 
+      {/* ── Title, Status & Meta ── */}
       <View style={s.card}>
         <View
           style={{
@@ -707,6 +780,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           ) : null}
         </View>
 
+        {/* Type badges */}
         {typeBadges.length > 0 && (
           <View
             style={{
@@ -721,6 +795,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* ── Artist Row ── */}
         {ar && typeof ar === "object" && (
           <T
             style={s.aRow}
@@ -762,6 +837,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           </T>
         )}
 
+        {/* ── Price & Actions ── */}
         <View
           style={{
             flexDirection: "row",
@@ -826,6 +902,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
           </View>
         </View>
 
+        {/* ── Action Button ── */}
         {isOwner ? (
           <T
             style={[s.buyBtn, { backgroundColor: c.rose }]}
@@ -847,6 +924,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         ) : null}
       </View>
 
+      {/* ── Description ── */}
       {(artwork.description || artwork.aiDescription) && (
         <Section label="ABOUT THIS WORK">
           {artwork.description ? (
@@ -888,6 +966,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── Artwork Details ── */}
       <Section label="DETAILS">
         <View style={{ gap: 2 }}>
           {artwork.medium ? (
@@ -913,6 +992,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </View>
       </Section>
 
+      {/* ── Materials ── */}
       {artwork.materials?.length > 0 && (
         <Section label="MATERIALS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
@@ -923,6 +1003,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── Categories ── */}
       {artwork.categories?.length > 0 && (
         <Section label="CATEGORIES">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
@@ -940,6 +1021,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── Dominant Colors ── */}
       {artwork.dominantColors?.length > 0 && (
         <Section label="COLOR PALETTE">
           <View style={{ flexDirection: "row", gap: sp.sm, flexWrap: "wrap" }}>
@@ -950,6 +1032,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── Engagement ── */}
       <Section label="ENGAGEMENT">
         <View
           style={{
@@ -965,6 +1048,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </View>
       </Section>
 
+      {/* ── Tags ── */}
       {artwork.tags?.length > 0 && (
         <Section label="TAGS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
@@ -975,6 +1059,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── AI Tags ── */}
       {artwork.aiTags?.length > 0 && (
         <Section label="AI TAGS">
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: sp.sm }}>
@@ -992,6 +1077,7 @@ export default function ArtworkDetailScreen({ route, navigation }) {
         </Section>
       )}
 
+      {/* ── Timestamps ── */}
       <View style={[s.card, { marginBottom: sp.lg }]}>
         {created && (
           <Text style={{ fontSize: fs.xs, color: c.textMuted }}>
