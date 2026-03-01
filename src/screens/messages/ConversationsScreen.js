@@ -9,25 +9,28 @@ import {
   ActivityIndicator,
   StyleSheet,
   TextInput,
-  Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
 import { useAuth } from "../../store/authStore";
-import { users } from "../../services/data";
-import socketService from "../../services/socket";
+import { API_URL } from "../../constants/api";
+import * as SecureStore from "expo-secure-store";
+import socket from "../../services/socket";
 
-const API_URL = __DEV__
-  ? "http://192.168.1.71:3000"
-  : "https://staff-arts-api.onrender.com";
+async function authFetch(url, opts = {}) {
+  var token = await SecureStore.getItemAsync("token");
+  var headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (token) headers.Authorization = "Bearer " + token;
+  return fetch(url, { ...opts, headers });
+}
 
 export default function ConversationsScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const userId = user?._id || user?.id;
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Search state for new message ──
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -36,16 +39,61 @@ export default function ConversationsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchConversations();
+
+      // Poll every 5 seconds for updates while screen is focused
+      const interval = setInterval(fetchConversations, 5000);
+      return () => clearInterval(interval);
     }, [])
   );
 
+  // Listen for new messages to update conversation list in real-time
+  useEffect(() => {
+    function handleNewMessage(message) {
+      setConversations((prev) => {
+        const convId = message.conversation || message.conversationId;
+        const exists = prev.find((c) => c._id === convId);
+
+        if (exists) {
+          const updated = prev.map((conv) => {
+            if (conv._id === convId) {
+              const senderId = message.sender?._id || message.sender || message.senderId;
+              const isFromOther = senderId !== userId;
+              return {
+                ...conv,
+                lastMessage: message.content || message.text || conv.lastMessage,
+                lastMessageAt: message.createdAt || new Date().toISOString(),
+                unreadCount: isFromOther ? (conv.unreadCount || 0) + 1 : conv.unreadCount,
+              };
+            }
+            return conv;
+          });
+          return updated.sort(
+            (a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt)
+          );
+        }
+
+        // New conversation — refetch to get full data
+        fetchConversations();
+        return prev;
+      });
+    }
+
+    socket.on("receive-message", handleNewMessage);
+    return () => socket.off("receive-message", handleNewMessage);
+  }, [userId]);
+
   async function fetchConversations() {
     try {
-      const res = await fetch(
-        `${API_URL}/api/conversations?userId=${user?._id}`
-      );
-      const data = await res.json();
-      setConversations(Array.isArray(data) ? data : []);
+      const res = await authFetch(API_URL + "/api/messages/conversations");
+      const json = await res.json();
+      const data = json.data || json;
+      const convs = Array.isArray(data) ? data : [];
+      setConversations(convs);
+
+      // Join all conversation rooms so we get real-time updates
+      convs.forEach((conv) => {
+        socket.emit("join", conv._id);
+      });
     } catch (err) {
       console.error("Failed to fetch conversations:", err);
     } finally {
@@ -53,36 +101,6 @@ export default function ConversationsScreen() {
     }
   }
 
-  // Real-time updates
-  useEffect(() => {
-    function handleNewMessage(message) {
-      setConversations((prev) => {
-        const updated = prev.map((conv) => {
-          if (conv._id === message.conversationId) {
-            return {
-              ...conv,
-              lastMessage: {
-                text: message.text || "📷 Image",
-                senderId: message.senderId,
-                createdAt: message.createdAt,
-              },
-            };
-          }
-          return conv;
-        });
-        return updated.sort(
-          (a, b) =>
-            new Date(b.lastMessage?.createdAt || b.updatedAt) -
-            new Date(a.lastMessage?.createdAt || a.updatedAt)
-        );
-      });
-    }
-
-    socketService.on("newMessage", handleNewMessage);
-    return () => socketService.off("newMessage", handleNewMessage);
-  }, []);
-
-  // ── Search for users ──
   async function handleSearch(query) {
     setSearchQuery(query);
     if (query.trim().length < 2) {
@@ -91,10 +109,11 @@ export default function ConversationsScreen() {
     }
     setSearching(true);
     try {
-      const data = await users.search(query);
-      // Filter out current user
-      const filtered = (data.users || data || []).filter(
-        (u) => u._id !== user?._id
+      const res = await authFetch(API_URL + "/api/users?search=" + encodeURIComponent(query));
+      const json = await res.json();
+      const data = json.data || json.users || json;
+      const filtered = (Array.isArray(data) ? data : []).filter(
+        (u) => (u._id || u.id) !== userId
       );
       setSearchResults(filtered);
     } catch (err) {
@@ -111,19 +130,19 @@ export default function ConversationsScreen() {
     setSearchResults([]);
     navigation.navigate("Chat", {
       conversationId: null,
-      participantId: otherUser._id,
+      participantId: otherUser._id || otherUser.id,
       name: otherUser.displayName || otherUser.name || otherUser.username,
     });
   }
 
   function getOtherParticipant(convo) {
-    return convo.participants?.find((p) => p._id !== user?._id) || {};
+    return convo.participants?.find((p) => (p._id || p.id) !== userId) || {};
   }
 
-  // ── Render conversation row ──
   function renderConversation({ item }) {
     const other = getOtherParticipant(item);
-    const unread = item.unreadCount?.[user?._id] || 0;
+    const lastText = item.lastMessage || "";
+    const unread = item.unreadCount || 0;
 
     return (
       <TouchableOpacity
@@ -131,7 +150,7 @@ export default function ConversationsScreen() {
         onPress={() =>
           navigation.navigate("Chat", {
             conversationId: item._id,
-            participantId: other._id,
+            participantId: other._id || other.id,
             name: other.displayName || other.name || "Unknown",
           })
         }
@@ -151,26 +170,20 @@ export default function ConversationsScreen() {
 
         <View style={s.content}>
           <View style={s.topRow}>
-            <Text style={s.name} numberOfLines={1}>
+            <Text style={[s.name, unread > 0 && { color: c.text, fontWeight: fw.bold }]} numberOfLines={1}>
               {other.displayName || other.name || "Unknown"}
             </Text>
             <Text style={s.time}>
-              {formatRelativeTime(item.lastMessage?.createdAt)}
+              {formatRelativeTime(item.lastMessageAt || item.updatedAt)}
             </Text>
           </View>
           <View style={s.bottomRow}>
-            <Text
-              style={[s.preview, unread > 0 && s.previewUnread]}
-              numberOfLines={1}
-            >
-              {item.lastMessage?.senderId === user?._id && "You: "}
-              {item.lastMessage?.text || "No messages yet"}
+            <Text style={[s.preview, unread > 0 && s.previewUnread]} numberOfLines={1}>
+              {lastText || "No messages yet"}
             </Text>
             {unread > 0 && (
               <View style={s.badge}>
-                <Text style={s.badgeText}>
-                  {unread > 9 ? "9+" : unread}
-                </Text>
+                <Text style={s.badgeText}>{unread > 99 ? "99+" : unread}</Text>
               </View>
             )}
           </View>
@@ -179,7 +192,6 @@ export default function ConversationsScreen() {
     );
   }
 
-  // ── Render search result row ──
   function renderSearchResult({ item }) {
     return (
       <TouchableOpacity
@@ -220,7 +232,6 @@ export default function ConversationsScreen() {
 
   return (
     <View style={s.container}>
-      {/* ── New Message Button ── */}
       {!showSearch && (
         <TouchableOpacity
           style={s.newMsgBtn}
@@ -232,7 +243,6 @@ export default function ConversationsScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Search Bar ── */}
       {showSearch && (
         <View style={s.searchBar}>
           <TextInput
@@ -256,40 +266,36 @@ export default function ConversationsScreen() {
         </View>
       )}
 
-      {/* ── Search Results ── */}
       {showSearch ? (
         <FlatList
           data={searchResults}
           keyExtractor={(item) => item._id}
           renderItem={renderSearchResult}
-          contentContainerStyle={
-            searchResults.length === 0 ? s.center : undefined
-          }
+          contentContainerStyle={searchResults.length === 0 ? s.emptyList : undefined}
           ListEmptyComponent={
             searching ? (
               <ActivityIndicator color={c.teal} style={{ marginTop: 40 }} />
             ) : searchQuery.length >= 2 ? (
-              <Text style={[s.emptyText, { marginTop: 40 }]}>
-                No users found
-              </Text>
+              <Text style={[s.emptyText, { marginTop: 40 }]}>No users found</Text>
             ) : (
-              <Text style={[s.emptyText, { marginTop: 40 }]}>
-                Type at least 2 characters to search
-              </Text>
+              <Text style={[s.emptyText, { marginTop: 40 }]}>Type at least 2 characters to search</Text>
             )
           }
         />
       ) : (
-        /* ── Conversations List ── */
         <FlatList
           data={conversations}
           keyExtractor={(item) => item._id}
           renderItem={renderConversation}
-          contentContainerStyle={
-            conversations.length === 0 ? s.center : undefined
-          }
+          contentContainerStyle={conversations.length === 0 ? s.emptyList : undefined}
           ListEmptyComponent={
-            <Text style={s.emptyText}>No conversations yet</Text>
+            <View style={{ alignItems: "center", marginTop: 60 }}>
+              <Text style={{ fontSize: 40, marginBottom: sp.md }}>💬</Text>
+              <Text style={{ fontSize: fs.lg, color: c.textSecondary }}>No conversations yet</Text>
+              <Text style={{ fontSize: fs.sm, color: c.textMuted, marginTop: sp.xs }}>
+                Start a conversation by tapping ✏️ above
+              </Text>
+            </View>
           }
         />
       )}
@@ -303,9 +309,9 @@ function formatRelativeTime(dateStr) {
   const d = new Date(dateStr);
   const diff = Math.floor((now - d) / 1000);
   if (diff < 60) return "now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+  if (diff < 3600) return Math.floor(diff / 60) + "m";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h";
+  if (diff < 604800) return Math.floor(diff / 86400) + "d";
   return d.toLocaleDateString();
 }
 
@@ -319,8 +325,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // ── NEW MESSAGE BUTTON ──
+  emptyList: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   newMsgBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -334,16 +343,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.borderLight,
   },
-  newMsgIcon: {
-    fontSize: 16,
-  },
-  newMsgText: {
-    fontSize: fs.sm,
-    fontWeight: fw.semi,
-    color: c.teal,
-  },
-
-  // ── SEARCH BAR ──
+  newMsgIcon: { fontSize: 16 },
+  newMsgText: { fontSize: fs.sm, fontWeight: fw.semi, color: c.teal },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -364,17 +365,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.borderLight,
   },
-  cancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  cancelText: {
-    fontSize: fs.sm,
-    color: c.teal,
-    fontWeight: fw.semi,
-  },
-
-  // ── ROW ──
+  cancelBtn: { paddingVertical: 10, paddingHorizontal: 4 },
+  cancelText: { fontSize: fs.sm, color: c.teal, fontWeight: fw.semi },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -383,64 +375,29 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
   },
-
-  // ── AVATAR ──
-  avatarWrap: {
-    marginRight: 14,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
+  avatarWrap: { marginRight: 14 },
+  avatar: { width: 50, height: 50, borderRadius: 25 },
   avatarFallback: {
     backgroundColor: c.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: fw.bold,
-    color: c.teal,
-  },
-
-  // ── CONTENT ──
-  content: {
-    flex: 1,
-  },
+  avatarText: { fontSize: 18, fontWeight: fw.bold, color: c.teal },
+  content: { flex: 1 },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
   },
-  name: {
-    fontSize: fs.sm,
-    fontWeight: fw.semi,
-    color: c.text,
-    flex: 1,
-    marginRight: 8,
-  },
-  time: {
-    fontSize: 11,
-    color: c.textMuted,
-  },
+  name: { fontSize: fs.sm, fontWeight: fw.semi, color: c.text, flex: 1, marginRight: 8 },
+  time: { fontSize: 11, color: c.textMuted },
+  preview: { fontSize: 13, color: c.textMuted, flex: 1, marginRight: 8 },
+  previewUnread: { color: c.text, fontWeight: fw.medium },
   bottomRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-  preview: {
-    fontSize: 13,
-    color: c.textMuted,
-    flex: 1,
-    marginRight: 8,
-  },
-  previewUnread: {
-    color: c.text,
-    fontWeight: fw.medium,
-  },
-
-  // ── BADGE ──
   badge: {
     backgroundColor: c.teal,
     borderRadius: 10,
@@ -455,9 +412,5 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: fw.bold,
   },
-
-  emptyText: {
-    color: c.textMuted,
-    fontSize: fs.sm,
-  },
+  emptyText: { color: c.textMuted, fontSize: fs.sm },
 });

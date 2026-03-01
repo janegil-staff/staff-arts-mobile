@@ -1,18 +1,40 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../store/authStore";
 import { colors as c, fs, fw, sp, rad } from "../../constants/theme";
+import { API_URL } from "../../constants/api";
+import * as SecureStore from "expo-secure-store";
+
+async function authFetch(url, opts = {}) {
+  var token = await SecureStore.getItemAsync("token");
+  var headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (token) headers.Authorization = "Bearer " + token;
+  return fetch(url, { ...opts, headers });
+}
 
 export default function ProfileScreen({ navigation }) {
   var { user, logout, refreshUser } = useAuth();
+  var [unreadCount, setUnreadCount] = useState(0);
 
-  // Silently refresh user data on focus — updates store directly
   useFocusEffect(
     useCallback(function () {
       refreshUser();
+      fetchUnread();
+
+      // Poll every 5 seconds while on profile
+      var interval = setInterval(fetchUnread, 5000);
+      return function () { clearInterval(interval); };
     }, [])
   );
+
+  async function fetchUnread() {
+    try {
+      var res = await authFetch(API_URL + "/api/messages/conversations");
+      var json = await res.json();
+      setUnreadCount(json.totalUnread || 0);
+    } catch (e) {}
+  }
 
   var u = user;
 
@@ -79,6 +101,7 @@ export default function ProfileScreen({ navigation }) {
           ["💬", "Messages", "Messages"],
           ["⚙️", "Settings", "Settings"],
         ].map(function (item, i) {
+          var isMessages = item[2] === "Messages";
           return (
             <TouchableOpacity
               key={item[1]}
@@ -89,7 +112,24 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={{ fontSize: 18 }}>{item[0]}</Text>
                 <Text style={{ fontSize: fs.md, color: c.text }}>{item[1]}</Text>
               </View>
-              <Text style={{ color: c.textMuted, fontSize: 16 }}>›</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {isMessages && unreadCount > 0 && (
+                  <View style={{
+                    backgroundColor: c.teal,
+                    borderRadius: 10,
+                    minWidth: 20,
+                    height: 20,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 6,
+                  }}>
+                    <Text style={{ color: "#fff", fontSize: 11, fontWeight: fw.bold }}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </Text>
+                  </View>
+                )}
+                <Text style={{ color: c.textMuted, fontSize: 16 }}>›</Text>
+              </View>
             </TouchableOpacity>
           );
         })}

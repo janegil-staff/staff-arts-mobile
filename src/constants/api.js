@@ -1,4 +1,6 @@
-export var API_URL = "http://192.168.1.71:3000";
+export var API_URL = __DEV__
+  ? "http://192.168.1.153:3000"
+  : "https://staff-arts-api.onrender.com";
 
 export var API = {
   login: "/api/mobile/auth/login",
