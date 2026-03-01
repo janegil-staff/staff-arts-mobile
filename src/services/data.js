@@ -40,6 +40,7 @@ async function clearTokens() {
 
 async function authHeaders() {
   var token = await getToken();
+  console.log("[Auth] Token exists:", !!token);
   var h = { "Content-Type": "application/json" };
   if (token) h.Authorization = "Bearer " + token;
   return h;

@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
-import {
-  NavigationContainer,
-  createNavigationContainerRef,
-} from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, ActivityIndicator, LogBox } from "react-native";
@@ -11,10 +8,8 @@ import { AuthProvider, useAuth } from "./src/store/authStore";
 import { auth } from "./src/services/data";
 import MainNav from "./src/navigation/MainNavigator";
 import { colors } from "./src/constants/theme";
-import {
-  registerForPushNotifications,
-  useNotifications,
-} from "./src/utils/pushNotifications";
+import { registerForPushNotifications, useNotifications } from "./src/utils/pushNotifications";
+import socket from "./src/services/socket";
 
 LogBox.ignoreLogs(["Reanimated", "VirtualizedLists"]);
 
@@ -34,6 +29,23 @@ var navTheme = {
 
 function Root() {
   var { loading, user, ok } = useAuth();
+
+  // ── Connect socket when logged in ──
+  useEffect(
+    function () {
+      if (ok && user) {
+        if (!socket.connected) {
+          socket.connect();
+          console.log("[Socket] Connecting...");
+        }
+      } else {
+        if (socket.connected) {
+          socket.disconnect();
+        }
+      }
+    },
+    [ok, user],
+  );
 
   // ── Register push token after login ──
   useEffect(

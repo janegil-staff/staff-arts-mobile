@@ -1,10 +1,11 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 
-// ── Configure how notifications appear when app is in foreground ──
+// ── Show notifications even when app is open ──
 
 Notifications.setNotificationHandler({
   handleNotification: async function () {
@@ -16,27 +17,30 @@ Notifications.setNotificationHandler({
   },
 });
 
-// ── Register for push notifications ──
+// ── Ask permission and get the push token ──
+//
+// Call this after login. Returns the token string or null.
+// Send the returned token to your backend via auth.savePushToken(token)
 
 export async function registerForPushNotifications() {
-  // Push only works on physical devices
+  // Push only works on real phones, not simulators
   if (!Device.isDevice) {
-    console.log("[Push] Must use physical device for push notifications");
+    console.log("[Push] Must use physical device");
     return null;
   }
 
-  // Check existing permissions
+  // Check if we already have permission
   var { status: existingStatus } = await Notifications.getPermissionsAsync();
   var finalStatus = existingStatus;
 
-  // Request permissions if not granted
+  // If not, ask the user
   if (existingStatus !== "granted") {
     var { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
 
   if (finalStatus !== "granted") {
-    console.log("[Push] Permission not granted");
+    console.log("[Push] Permission denied");
     return null;
   }
 
@@ -64,7 +68,16 @@ export async function registerForPushNotifications() {
   }
 }
 
-// ── Hook for handling notifications in components ──
+// ── Hook: handle notification taps ──
+//
+// Use in your root component. Pass a callback that receives
+// the notification's data payload (which includes `type`, `artworkId`, etc.)
+//
+// Example:
+//   useNotifications(function (data) {
+//     if (data.type === "message") navigate to chat
+//     if (data.type === "like") navigate to artwork
+//   });
 
 export function useNotifications(onNotificationTapped) {
   var notificationListener = useRef();
@@ -72,27 +85,29 @@ export function useNotifications(onNotificationTapped) {
   var [notification, setNotification] = useState(null);
 
   useEffect(function () {
-    // Listen for notifications received while app is open
+    // When a notification arrives while app is open
     notificationListener.current =
       Notifications.addNotificationReceivedListener(function (n) {
         setNotification(n);
       });
 
-    // Listen for when user taps a notification
+    // When user taps a notification
     responseListener.current =
-      Notifications.addNotificationResponseReceivedListener(function (response) {
-        var data = response.notification.request.content.data;
-        if (onNotificationTapped) {
-          onNotificationTapped(data);
-        }
-      });
+      Notifications.addNotificationResponseReceivedListener(
+        function (response) {
+          var data = response.notification.request.content.data;
+          if (onNotificationTapped) {
+            onNotificationTapped(data);
+          }
+        },
+      );
 
     return function () {
       if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
+        notificationListener.current.remove();
       }
       if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+        responseListener.current.remove();
       }
     };
   }, []);
@@ -100,7 +115,7 @@ export function useNotifications(onNotificationTapped) {
   return notification;
 }
 
-// ── Get badge count ──
+// ── Badge helpers ──
 
 export async function setBadgeCount(count) {
   try {

@@ -18,8 +18,6 @@ var W = Dimensions.get("window").width,
   G = 8,
   CW = (W - sp.lg * 2 - G) / 2;
 
-// ── Section Header ──
-
 function SectionLabel({ label }) {
   return (
     <Text
@@ -36,8 +34,6 @@ function SectionLabel({ label }) {
     </Text>
   );
 }
-
-// ── Event / Exhibition Card ──
 
 function ListingCard({ item, onPress, emoji }) {
   var dateStr = "";
@@ -137,8 +133,6 @@ function ListingCard({ item, onPress, emoji }) {
   );
 }
 
-// ── Main Screen ──
-
 export default function ArtistProfile({ route, navigation: n }) {
   var { username, id } = route.params;
   var [p, sP] = useState(null);
@@ -148,16 +142,13 @@ export default function ArtistProfile({ route, navigation: n }) {
   var [ld, sL] = useState(true);
   var [fol, sF] = useState(false);
 
-  // Derive a stable key from params to detect changes
   var profileKey = username || id || "";
 
-  // Reset everything and refetch when params change
   useFocusEffect(
     useCallback(
       function () {
         var cancelled = false;
 
-        // Reset state immediately
         sP(null);
         sA([]);
         sEv([]);
@@ -189,7 +180,6 @@ export default function ArtistProfile({ route, navigation: n }) {
 
               if (cancelled) return;
 
-              // Artworks — filter client-side as safety net
               var fetchedArts = artRes.artworks || artRes.data || [];
               var filteredArts = fetchedArts.filter(function (art) {
                 var artArtistId = String(art.artist?._id || art.artist || "");
@@ -197,7 +187,6 @@ export default function ArtistProfile({ route, navigation: n }) {
               });
               sA(filteredArts);
 
-              // Events
               var fetchedEvs = evRes.events || evRes.data || [];
               var filteredEvs = fetchedEvs.filter(function (ev) {
                 var evOrgId = String(ev.organizer?._id || ev.organizer || "");
@@ -205,7 +194,6 @@ export default function ArtistProfile({ route, navigation: n }) {
               });
               sEv(filteredEvs);
 
-              // Exhibitions
               var fetchedExs = exRes.exhibitions || exRes.data || [];
               var filteredExs = fetchedExs.filter(function (ex) {
                 var exOrgId = String(ex.organizer?._id || ex.organizer || "");
@@ -251,7 +239,6 @@ export default function ArtistProfile({ route, navigation: n }) {
       </View>
     );
 
-  // Split events into music shows and regular events
   var musicShows = events.filter(function (ev) {
     return ev.category === "music";
   });
@@ -275,7 +262,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             marginBottom: sp.md,
           }}
         >
-          {/* ── Avatar ── */}
           {p.avatar ? (
             <Image
               source={{ uri: p.avatar }}
@@ -302,7 +288,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             />
           )}
 
-          {/* ── Name & Info ── */}
           <Text
             style={{ fontSize: fs.xxl, fontWeight: fw.light, color: c.text }}
           >
@@ -330,7 +315,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             </Text>
           )}
 
-          {/* ── Stats ── */}
           <View
             style={{
               flexDirection: "row",
@@ -398,6 +382,7 @@ export default function ArtistProfile({ route, navigation: n }) {
                 {fol ? "Following" : "Follow"}
               </Text>
             </T>
+            {/* ── FIXED: Navigate directly to Chat at root level ── */}
             <T
               style={{
                 borderWidth: 1.5,
@@ -407,13 +392,10 @@ export default function ArtistProfile({ route, navigation: n }) {
                 paddingHorizontal: 32,
               }}
               onPress={function () {
-                n.navigate("Messages", {
-                  screen: "Chat",
-                  params: {
-                    conversationId: null,
-                    participantId: p._id,
-                    name: p.displayName,
-                  },
+                n.navigate("Chat", {
+                  conversationId: null,
+                  participantId: p._id,
+                  name: p.displayName,
                 });
               }}
             >
@@ -425,7 +407,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             </T>
           </View>
 
-          {/* ── Exhibitions ── */}
           {exhibitions.length > 0 && (
             <View style={{ alignSelf: "stretch" }}>
               <SectionLabel label="EXHIBITIONS" />
@@ -450,7 +431,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             </View>
           )}
 
-          {/* ── Events ── */}
           {regularEvents.length > 0 && (
             <View style={{ alignSelf: "stretch" }}>
               <SectionLabel label="EVENTS" />
@@ -475,7 +455,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             </View>
           )}
 
-          {/* ── Music Shows ── */}
           {musicShows.length > 0 && (
             <View style={{ alignSelf: "stretch" }}>
               <SectionLabel label="MUSIC" />
@@ -500,7 +479,6 @@ export default function ArtistProfile({ route, navigation: n }) {
             </View>
           )}
 
-          {/* ── Works Header ── */}
           {arts.length > 0 && (
             <View style={{ alignSelf: "stretch" }}>
               <SectionLabel label="WORKS" />

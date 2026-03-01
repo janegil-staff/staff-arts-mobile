@@ -1,9 +1,10 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { View, Text, Platform, Alert } from "react-native";
+import { View, Text, Platform } from "react-native";
 import { colors as c, fs, fw, sp } from "../constants/theme";
 import { useAuth } from "../store/authStore";
 
+// ── SCREENS ──
 import HomeScreen from "../screens/home/HomeScreen";
 import ExploreScreen from "../screens/explore/ExploreScreen";
 import UploadScreen from "../screens/artwork/UploadScreen";
@@ -32,7 +33,9 @@ import LoginScreen from "../screens/auth/LoginScreen";
 import RegisterScreen from "../screens/auth/RegisterScreen";
 import ShowsScreen from "../screens/shows/ShowsScreen";
 
+// ── NAVIGATORS ──
 var Tab = createBottomTabNavigator();
+var RootStack = createNativeStackNavigator();
 
 var so = {
   headerStyle: { backgroundColor: c.bg },
@@ -42,6 +45,7 @@ var so = {
   contentStyle: { backgroundColor: c.bg },
 };
 
+// ── TAB ICON ──
 function TabIcon({ label, icon, focused }) {
   return (
     <View
@@ -90,8 +94,11 @@ function S() {
   return createNativeStackNavigator();
 }
 
-// ── PUBLIC STACKS (no auth needed) ──
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TAB STACKS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// ── HOME STACK ──
 var HS = S();
 function HomeNav() {
   return (
@@ -151,6 +158,7 @@ function HomeNav() {
   );
 }
 
+// ── EXPLORE STACK ──
 var ES = S();
 function ExploreNav() {
   return (
@@ -179,9 +187,9 @@ function ExploreNav() {
   );
 }
 
+// ── SHOWS STACK ──
 var CS = S();
 function ShowsNav() {
-  var { ok } = useAuth();
   return (
     <CS.Navigator screenOptions={so}>
       <CS.Screen
@@ -189,7 +197,6 @@ function ShowsNav() {
         component={ShowsScreen}
         options={{ title: "Shows" }}
       />
-
       <CS.Screen
         name="ArtistProfile"
         component={ArtistProfileScreen}
@@ -237,8 +244,7 @@ function ShowsNav() {
   );
 }
 
-// ── PROFILE STACK (has login/register screens inside) ──
-
+// ── PROFILE STACK ──
 var PS = S();
 function ProfileNav() {
   var { ok } = useAuth();
@@ -287,18 +293,6 @@ function ProfileNav() {
             options={{ title: "Commission" }}
           />
           <PS.Screen
-            name="Messages"
-            component={ConversationsScreen}
-            options={{ title: "Messages" }}
-          />
-          <PS.Screen
-            name="Chat"
-            component={ChatScreen}
-            options={function ({ route }) {
-              return { title: route.params?.name || "Chat" };
-            }}
-          />
-          <PS.Screen
             name="Notifications"
             component={NotificationsScreen}
             options={{ title: "Notifications" }}
@@ -327,22 +321,22 @@ function ProfileNav() {
   );
 }
 
-// ── TAB NAVIGATOR ──
-
-export default function MainNav() {
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TAB NAVIGATOR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function TabNav() {
   var { ok } = useAuth();
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        // In MainNav, change the tabBarStyle:
         tabBarStyle: {
           backgroundColor: c.surface,
           borderTopColor: c.borderLight,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 94 : 90, // ← increased from 72
-          paddingBottom: Platform.OS === "ios" ? 28 : 20, // ← increased from 10
+          height: Platform.OS === "ios" ? 94 : 90,
+          paddingBottom: Platform.OS === "ios" ? 28 : 20,
           paddingTop: 4,
           elevation: 0,
         },
@@ -433,5 +427,31 @@ export default function MainNav() {
         }}
       />
     </Tab.Navigator>
+  );
+}
+
+export default function MainNav() {
+  return (
+    <RootStack.Navigator screenOptions={so}>
+      <RootStack.Screen
+        name="Tabs"
+        component={TabNav}
+        options={{ headerShown: false }}
+      />
+
+      {/* ── SHARED SCREENS (accessible from any tab) ── */}
+      <RootStack.Screen
+        name="Messages"
+        component={ConversationsScreen}
+        options={{ title: "Messages" }}
+      />
+      <RootStack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={function ({ route }) {
+          return { title: route.params?.name || "Chat" };
+        }}
+      />
+    </RootStack.Navigator>
   );
 }
